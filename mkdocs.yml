@@ -1,0 +1,101 @@
+site_name: Drone Planning
+site_url: https://h-tr.github.io/Drone-Planning/
+site_description: Planning library for the Holybro X500 V2 quadrotor with a gimbal camera — geometric and kinodynamic motion planning with SIMD collision checking.
+repo_url: https://github.com/H-tr/Drone-Planning
+repo_name: H-tr/Drone-Planning
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - toc.follow
+
+markdown_extensions:
+  - admonition
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            docstring_style: google
+            members_order: source
+            merge_init_into_class: true
+            show_signature_annotations: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Robot Model: robot.md
+  - Motion Planning:
+      - Overview: planning/index.md
+      - Subgroup planning: planning/subgroup.md
+      - Time parameterization: planning/trajectory.md
+      - Kinodynamic planning: planning/kinodynamic.md
+  - API Reference:
+      - Kinematics: api/kinematics.md
+      - Motion Planning: api/planning.md
+      - Trajectory: api/trajectory.md
+      - Types: api/types.md
+      - Configuration: api/config.md
+      - Environments: api/environments.md
+      - Utilities: api/utilities.md
+  - Examples: examples.md

@@ -1,0 +1,10 @@
+{
+    "name": "X500",
+    "urdf": "x500/x500_spherized.urdf",
+    "srdf": "x500/x500.srdf",
+    "end_effector": "camera_sensor_link",
+    "resolution": 64,
+    "template": "templates/fk_template.hh",
+    "subtemplates": [{"name": "ccfk", "template": "templates/ccfk_template.hh"}],
+    "output": "x500_fk.hh"
+}

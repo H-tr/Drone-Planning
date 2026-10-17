@@ -1,0 +1,64 @@
+<?xml version="1.0" ?>
+<!--Self-collision exclusions for the X500 (x500_spherized.urdf).
+
+    Only the gimbal moves relative to the body: pan (cgo3_vertical_arm_joint)
+    and tilt (cgo3_camera_joint).  Checking the mesh model (x500.urdf) on a
+    73 x 61 grid over both joint ranges, the only contacts are between links
+    joined by a joint (Adjacent: the pan yoke inside its mount, the camera
+    against its tilt yoke at the ends of its range); every other pair never
+    touches.  The spheres overreach the meshes by up to 7 cm and overlap in
+    most gimbal poses, so every pair is excluded: the X500 cannot collide
+    with itself inside its joint limits.
+-->
+<robot name="x500">
+    <group name="x500_base">
+        <joint name="base_x_joint" />
+        <joint name="base_y_joint" />
+        <joint name="base_z_joint" />
+        <joint name="base_yaw_joint" />
+    </group>
+    <group name="x500_whole_body">
+        <joint name="base_x_joint" />
+        <joint name="base_y_joint" />
+        <joint name="base_z_joint" />
+        <joint name="base_yaw_joint" />
+        <joint name="cgo3_vertical_arm_joint" />
+        <joint name="cgo3_camera_joint" />
+    </group>
+    <disable_collisions link1="base_link" link2="rotor_0" reason="Adjacent" />
+    <disable_collisions link1="base_link" link2="rotor_1" reason="Adjacent" />
+    <disable_collisions link1="base_link" link2="rotor_2" reason="Adjacent" />
+    <disable_collisions link1="base_link" link2="rotor_3" reason="Adjacent" />
+    <disable_collisions link1="base_link" link2="cgo3_mount_link" reason="Adjacent" />
+    <disable_collisions link1="base_link" link2="cgo3_vertical_arm_link" reason="Never" />
+    <disable_collisions link1="base_link" link2="cgo3_horizontal_arm_link" reason="Never" />
+    <disable_collisions link1="base_link" link2="camera_link" reason="Never" />
+    <disable_collisions link1="rotor_0" link2="rotor_1" reason="Never" />
+    <disable_collisions link1="rotor_0" link2="rotor_2" reason="Never" />
+    <disable_collisions link1="rotor_0" link2="rotor_3" reason="Never" />
+    <disable_collisions link1="rotor_0" link2="cgo3_mount_link" reason="Never" />
+    <disable_collisions link1="rotor_0" link2="cgo3_vertical_arm_link" reason="Never" />
+    <disable_collisions link1="rotor_0" link2="cgo3_horizontal_arm_link" reason="Never" />
+    <disable_collisions link1="rotor_0" link2="camera_link" reason="Never" />
+    <disable_collisions link1="rotor_1" link2="rotor_2" reason="Never" />
+    <disable_collisions link1="rotor_1" link2="rotor_3" reason="Never" />
+    <disable_collisions link1="rotor_1" link2="cgo3_mount_link" reason="Never" />
+    <disable_collisions link1="rotor_1" link2="cgo3_vertical_arm_link" reason="Never" />
+    <disable_collisions link1="rotor_1" link2="cgo3_horizontal_arm_link" reason="Never" />
+    <disable_collisions link1="rotor_1" link2="camera_link" reason="Never" />
+    <disable_collisions link1="rotor_2" link2="rotor_3" reason="Never" />
+    <disable_collisions link1="rotor_2" link2="cgo3_mount_link" reason="Never" />
+    <disable_collisions link1="rotor_2" link2="cgo3_vertical_arm_link" reason="Never" />
+    <disable_collisions link1="rotor_2" link2="cgo3_horizontal_arm_link" reason="Never" />
+    <disable_collisions link1="rotor_2" link2="camera_link" reason="Never" />
+    <disable_collisions link1="rotor_3" link2="cgo3_mount_link" reason="Never" />
+    <disable_collisions link1="rotor_3" link2="cgo3_vertical_arm_link" reason="Never" />
+    <disable_collisions link1="rotor_3" link2="cgo3_horizontal_arm_link" reason="Never" />
+    <disable_collisions link1="rotor_3" link2="camera_link" reason="Never" />
+    <disable_collisions link1="cgo3_mount_link" link2="cgo3_vertical_arm_link" reason="Adjacent" />
+    <disable_collisions link1="cgo3_mount_link" link2="cgo3_horizontal_arm_link" reason="Never" />
+    <disable_collisions link1="cgo3_mount_link" link2="camera_link" reason="Never" />
+    <disable_collisions link1="cgo3_vertical_arm_link" link2="cgo3_horizontal_arm_link" reason="Adjacent" />
+    <disable_collisions link1="cgo3_vertical_arm_link" link2="camera_link" reason="Never" />
+    <disable_collisions link1="cgo3_horizontal_arm_link" link2="camera_link" reason="Adjacent" />
+</robot>
