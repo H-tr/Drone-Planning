@@ -127,18 +127,17 @@ as points (`point_radius` 0): the spheres are the margin.
 
     The generated check tests each link's bounding sphere (the smallest
     sphere around its spheres) against the environment before the link's
-    spheres. VAMP indexes a point cloud in a CAPT that finds every point
-    within `r` of a query only for `r` up to the `r_max` it was built
-    with; built with `Robot::max_radius` (the largest single sphere,
-    79.5 mm) a bounding-sphere query — base_link's is 286 mm — can miss a
-    point the link's spheres touch, and a colliding configuration passes
-    (measured on the demo room: 0.5 % of configurations near the window,
-    penetrating up to 3.8 cm). `add_pointcloud` therefore builds the CAPT
-    with the largest bounding-sphere radius (`kMaxQueryRadius`,
-    `ext/ompl_vamp/validity.hpp`; `generate_fk.sh` prints it), and
-    `tests/test_collision_model.py` checks VAMP's verdict against a
-    brute-force sphere–point check. The index grows with that radius:
-    0.8 s and ~0.4 GB for the 100k-point demo room.
+    spheres, and `add_pointcloud` indexes a point cloud in VAMP's CAPT for
+    queries up to `Robot::max_radius`. Known upstream limitation:
+    `max_radius` is the largest single sphere (79.5 mm), not the largest
+    bounding sphere (base_link's, 286 mm), so a bounding-sphere query can
+    miss a point the link's spheres touch and a colliding configuration
+    passes (measured on the demo room at 2 cm: 1.2 % of colliding
+    configurations, penetrating up to 7.1 cm; 8 % of the demo-room plans
+    cut into an obstacle, by up to 2 cm). `tests/test_collision_model.py`
+    checks VAMP's verdict against a brute-force sphere–point check and is
+    an expected failure until upstream fixes this. Building the index takes
+    0.25 s and ~0.2 GB for the 100k-point demo room.
 
 ## Limits
 

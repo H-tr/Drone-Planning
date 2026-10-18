@@ -37,19 +37,6 @@ inline constexpr std::size_t kRake = vamp::FloatVectorWidth;
 using VampEnv = vamp::collision::Environment<vamp::FloatVector<kRake>>;
 using FloatEnv = vamp::collision::Environment<float>;
 
-/// Largest sphere radius ``Robot::fkcc`` queries the environment with.
-/// Before a link's spheres, the cricket-generated check tests the link's
-/// bounding sphere (the smallest sphere around them); base_link's, 0.2864 m
-/// (``y[507]`` in x500.hh), is the largest.  A point cloud's CAPT finds
-/// every point within ``r`` of a query only for ``r`` up to the ``r_max``
-/// it was built with, so built with ``Robot::max_radius`` (the largest
-/// single sphere, 0.0795 m) a bounding-sphere query can miss a point one
-/// of the link's spheres touches, and the check passes a colliding
-/// configuration.  Point clouds are built with this radius instead.
-/// Regenerating x500.hh changes it: take the largest bounding-sphere radius
-/// ``y[(n_spheres + i) * 4 + 3]`` of the new header.
-inline constexpr float kMaxQueryRadius = 0.286441683769226f;
-
 /// Full-body VAMP configuration from an active-DOF OMPL state.
 inline auto expand_state(const ob::State* state, const std::vector<int>& active,
                          const std::vector<float>& frozen)

@@ -40,19 +40,4 @@ mkdir -p "$FK_DEST"
 cp "$CRICKET/x500_fk.hh" "$FK_DEST/x500.hh"
 echo "    installed $FK_DEST/x500.hh"
 
-# The header checks each link's bounding sphere before its spheres; point
-# clouds are indexed for the largest of those radii (kMaxQueryRadius in
-# ext/ompl_vamp/validity.hpp) — update the constant when it changes.
-# Sphere i's radius is y[4 i + 3]; the bounding spheres follow the spheres.
-python - "$FK_DEST/x500.hh" <<'PY'
-import re
-import sys
-
-text = open(sys.argv[1]).read()
-n = int(re.search(r"n_spheres = (\d+)", text).group(1))
-assigned = {int(i): float(r) for i, r in re.findall(r"y\[(\d+)\] = ([0-9.e-]+);", text)}
-bounding = [r for i, r in assigned.items() if i >= 4 * n and i % 4 == 3]
-print(f"    largest link bounding-sphere radius: {max(bounding)} (kMaxQueryRadius)")
-PY
-
 echo "[3/3] Done! Rebuild the package to use the new FK code."

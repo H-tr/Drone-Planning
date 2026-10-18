@@ -119,14 +119,12 @@ class OmplVampPlanner {
   }
 
   /// Set the scene pointcloud.  The planner holds at most one cloud;
-  /// calling this replaces any previously-registered cloud.  The cloud's
-  /// CAPT covers queries up to the links' bounding spheres
-  /// (``kMaxQueryRadius``, validity.hpp).
+  /// calling this replaces any previously-registered cloud.
   void add_pointcloud(const Eigen::Ref<const Points>& points,
                       float point_radius) {
     float_env_.pointclouds.clear();
     float_env_.pointclouds.emplace_back(to_vamp_points_(points),
-                                        Robot::min_radius, kMaxQueryRadius,
+                                        Robot::min_radius, Robot::max_radius,
                                         point_radius);
     sync_env();
   }
