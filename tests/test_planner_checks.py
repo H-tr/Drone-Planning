@@ -103,3 +103,18 @@ def test_unknown_planner_names_raise(name):
         PlannerConfig(planner_name=name)
     with pytest.raises(ValueError, match="Unknown planner"):
         body_planner().plan(START, GOAL, name, 0.1, False, False, 0.0)
+
+
+def test_subgroup_inputs_are_checked():
+    home = HOME_JOINTS.tolist()
+    with pytest.raises(ValueError):
+        OmplVampPlanner([0, 1, 2], home[:5])
+    with pytest.raises(ValueError):
+        OmplVampPlanner([0, 1, 6], home)
+    with pytest.raises(ValueError):
+        OmplVampPlanner([-1, 1, 2], home)
+    planner = OmplVampPlanner()
+    with pytest.raises(ValueError):
+        planner.set_subgroup([0, 1, 2], home + [0.0])
+    with pytest.raises(ValueError):
+        planner.set_subgroup([0, 1, 6], home)
