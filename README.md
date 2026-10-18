@@ -134,7 +134,7 @@ and the cost of a collision check in
 ┌────────▼───────────────────────────────────────────────────────┐
 │              _ompl_vamp  (C++/nanobind extension)              │
 │  OMPL SimpleSetup, RealVectorStateSpace over the active joints │
-│    RRT-Connect, RRT*, BIT*, AIT*, KPIECE, PRM, FMT, … (31)     │
+│    RRT-Connect, RRT*, BIT*, AIT*, KPIECE, PRM, FMT, … (30)     │
 │  FLASK: kinodynamic RRT-Connect, closed-form cubic edges       │
 └────────┬───────────────────────────────────────────────────────┘
          │

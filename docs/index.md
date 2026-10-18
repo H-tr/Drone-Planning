@@ -19,7 +19,7 @@ unified Python API.
     For inference: **`numpy`, `pin`**. No conda required, no ROS, no
     MoveIt. One `pip install`.
 
--   :material-source-branch:{ .lg .middle } __31 planners__
+-   :material-source-branch:{ .lg .middle } __30 planners__
 
     ---
 

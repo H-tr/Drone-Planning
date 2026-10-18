@@ -7,7 +7,7 @@
     ---
 
     All of [OMPL](https://ompl.kavrakilab.org/)'s mature sampling-based
-    planners (31 exposed), driven by one uniform Python call. No glue
+    planners (30 exposed), driven by one uniform Python call. No glue
     code to swap planners — change a string.
 
 -   __VAMP backend__
@@ -74,7 +74,7 @@ accepts any of:
 
     | Family | Planners |
     |---|---|
-    | RRT | `rrtc`, `rrt`, `trrt`, `bitrrt`, `strrtstar`, `lbtrrt` |
+    | RRT | `rrtc`, `rrt`, `trrt`, `bitrrt`, `lbtrrt` |
     | KPIECE | `kpiece`, `bkpiece`, `lbkpiece` |
     | PRM | `prm`, `lazyprm`, `spars`, `spars2` |
     | Exploration | `est`, `biest`, `sbl`, `stride`, `pdst` |
