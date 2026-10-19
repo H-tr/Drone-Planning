@@ -619,13 +619,19 @@ class MotionPlanner:
             np.asarray(configurations, dtype=np.float64)
         )
 
-    def sample_valid(self) -> np.ndarray:
-        """Sample a random collision-free configuration."""
+    def sample_valid(self, max_samples: int = 100_000) -> np.ndarray:
+        """Sample a random collision-free configuration.
+
+        Raises:
+            RuntimeError: If none of ``max_samples`` uniform samples is valid.
+        """
         lo, hi = self.bounds
-        while True:
-            config = np.random.uniform(lo, hi)
-            if self._planner.validate(config):
-                return config
+        for _ in range(0, max_samples, 256):
+            batch = np.random.uniform(lo, hi, (256, self._ndof))
+            valid = np.flatnonzero(self.validate_batch(batch))
+            if valid.size:
+                return batch[valid[0]]
+        raise RuntimeError(f"no valid configuration in {max_samples} samples")
 
 
 def available_robots() -> list[str]:
