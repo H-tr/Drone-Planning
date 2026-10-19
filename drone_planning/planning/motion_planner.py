@@ -20,7 +20,6 @@ acceleration limits, for every subgroup.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Protocol, runtime_checkable
 
 import numpy as np
 
@@ -31,21 +30,6 @@ from drone_planning.types import (
     PlanningResult,
     PlanningStatus,
 )
-
-
-@runtime_checkable
-class MotionPlannerBase(Protocol):
-    """Protocol for motion planner backends."""
-
-    @property
-    def robot_name(self) -> str: ...
-
-    @property
-    def num_dof(self) -> int: ...
-
-    def plan(self, start: np.ndarray, goal: np.ndarray) -> PlanningResult: ...
-
-    def validate(self, configuration: np.ndarray) -> bool: ...
 
 
 class MotionPlanner:
@@ -242,10 +226,6 @@ class MotionPlanner:
     def has_pointcloud(self) -> bool:
         """``True`` if a pointcloud is currently registered."""
         return self._planner.has_pointcloud()
-
-    def clear_environment(self) -> None:
-        """Drop every registered obstacle (spheres and point clouds)."""
-        self._planner.clear_environment()
 
     # ── Point cloud filtering ────────────────────────────────────────
 
