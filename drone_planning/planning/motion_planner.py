@@ -409,11 +409,9 @@ class MotionPlanner:
         goal = np.asarray(goal, dtype=np.float64)
 
         if not self._planner.validate(start):
-            return PlanningResult(
-                PlanningStatus.INVALID_START, None, 0, 0, float("inf")
-            )
+            return PlanningResult(PlanningStatus.INVALID_START, None, 0, float("inf"))
         if not self._planner.validate(goal):
-            return PlanningResult(PlanningStatus.INVALID_GOAL, None, 0, 0, float("inf"))
+            return PlanningResult(PlanningStatus.INVALID_GOAL, None, 0, float("inf"))
 
         if time_limit is None:
             time_limit = self._config.time_limit
@@ -430,13 +428,12 @@ class MotionPlanner:
 
         if not result.solved:
             return PlanningResult(
-                PlanningStatus.FAILED, None, result.planning_time_ns, 0, float("inf")
+                PlanningStatus.FAILED, None, result.planning_time_ns, float("inf")
             )
         return PlanningResult(
             PlanningStatus.SUCCESS,
             np.array(result.path),
             result.planning_time_ns,
-            0,
             result.path_cost,
         )
 

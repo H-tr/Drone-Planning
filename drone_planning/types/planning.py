@@ -110,7 +110,6 @@ class PlanningResult:
     status: PlanningStatus
     path: np.ndarray | None
     planning_time_ns: int
-    iterations: int
     path_cost: float
 
     @property
