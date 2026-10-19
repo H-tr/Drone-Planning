@@ -154,8 +154,7 @@ class OmplVampPlanner {
 
   auto plan(const Eigen::VectorXd& start, const Eigen::VectorXd& goal,
             const std::string& planner_name, double time_limit, bool simplify,
-            bool interpolate, int interpolate_count, double resolution)
-      -> PlanResult {
+            bool interpolate, double resolution) -> PlanResult {
     check_dim_(start.size(), "plan: start");
     check_dim_(goal.size(), "plan: goal");
     auto si = make_space_information_();
@@ -186,7 +185,7 @@ class OmplVampPlanner {
     }
     if (simplify) ss.simplifySolution();
     auto& path = ss.getSolutionPath();
-    if (interpolate) densify(path, interpolate_count, resolution);
+    if (interpolate) densify(path, 0, resolution);
     result.path_cost = path.length();
     result.path = path_to_waypoints_(path);
     return result;

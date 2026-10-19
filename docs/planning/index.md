@@ -142,13 +142,11 @@ PlannerConfig(
     # After the raw path, run OMPL's SimpleSetup shortcutter.
     simplify=True,
 
-    # Resample the (simplified) path densely.  Pick one knob:
-    #   interpolate_count > 0   → exactly this many total waypoints
+    # Resample the (simplified) path densely:
     #   resolution > 0.0        → ceil(edge_length * resolution) samples per edge
-    #   both 0                  → OMPL's default longest-valid-segment fraction
+    #   0                       → OMPL's default longest-valid-segment fraction
     interpolate=True,
     resolution=64.0,
-    interpolate_count=0,
 
     # Joint ranges the planner samples in, by joint name (the workspace).
     joint_limits={"base_z_joint": (0.3, 2.7)},
