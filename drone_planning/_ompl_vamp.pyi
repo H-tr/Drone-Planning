@@ -305,5 +305,10 @@ class OmplVampPlanner:
                 planner plans over, in DOF order.
             frozen_config: Full-body stance (6 values) for every joint
                 *not* in ``active_indices``.
+
+        Raises:
+            ValueError: For an index outside ``[0, 6)`` or a
+                ``frozen_config`` without 6 entries (the subgroup
+                constructor raises the same).
         """
         ...
