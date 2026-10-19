@@ -114,19 +114,11 @@ filled from the PX4 limits.
 
 ## Results
 
-On a demo room (`examples/planning/_shared.py`: a wall with a 1.2 × 1.0 m
-window and a low beam, 100k points), four legs × 50 trials per subgroup,
-one core of an AMD EPYC 7543 (`examples/planning/kinodynamic.py`):
-
-| | `x500_base` (4 DOF) | `x500_whole_body` (6 DOF) |
-|---|---|---|
-| RRT-Connect, OMPL solve (median) | 1.2–2.5 ms | 1.2–3.4 ms |
-| RRT-Connect, `plan()` incl. simplification (median) | 6.8–17.4 ms | 7.5–18.0 ms |
-| FLASK, timed trajectory (median / p95) | 6.4–11.6 / 18–26 ms | 5.6–12.5 / 18–30 ms |
-| success | 200/200, both planners | 200/200, both planners |
-| FLASK peak velocity / acceleration ÷ limit | 1.000 | 1.000 |
-
-A collision check costs ~5 μs per configuration (`validate_batch`).
+Planning times and success rates of RRT-Connect (`plan()`) and FLASK on
+the demo room are in
+[docs/planning/kinodynamic.md](docs/planning/kinodynamic.md#results-on-the-demo-room),
+and the cost of a collision check in
+[docs/planning/index.md](docs/planning/index.md#standalone-collision-checking).
 
 ---
 

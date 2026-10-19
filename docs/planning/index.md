@@ -16,7 +16,8 @@
 
     Collision checking runs through [VAMP](https://github.com/KavrakiLab/vamp)'s
     SIMD-vectorised sphere pipeline. Point-cloud obstacles are
-    broadphase-indexed and checked in **~5 μs per config**.
+    broadphase-indexed; a check takes microseconds (see
+    [below](#standalone-collision-checking)).
 
 -   __C++ hot path__
 
@@ -179,6 +180,15 @@ planner.validate_batch(cfgs)            # (N, ndof) → (N,) bool array
 into a VAMP `ConfigurationBlock<rake>` and runs **one** `fkcc<rake>`
 call per block. Per-config result is preserved: when a packed block
 fails, only that block is re-checked configuration by configuration.
+
+It costs 2.65 μs per configuration for 100,000 uniform random whole-body
+configurations in the demo room (99,715 points), measured at commit
+`2fefdc3` on 2026-10-19 on one core of an AMD EPYC 7543 (raw output in
+`/nas/pollux/tianrun/drone-planning-flask/g1_validate_batch.txt`):
+
+```bash
+pixi run python -c "import sys, time, numpy as np; sys.path.insert(0, 'examples/planning'); from _shared import WORKSPACE, window_scene; from drone_planning.planning import create_planner; from drone_planning.types import PlannerConfig; p = create_planner('x500', config=PlannerConfig(joint_limits=WORKSPACE), pointcloud=window_scene()); lo, hi = p.bounds; q = np.random.default_rng(0).uniform(lo, hi, (100000, 6)); p.validate_batch(q[:1000]); t = time.perf_counter(); p.validate_batch(q); print(f'{(time.perf_counter() - t) / len(q) * 1e6:.2f} us per configuration')"
+```
 
 Like every VAMP edge, a planned path is collision-free up to the motion
 resolution: edges are checked every 1/64 of configuration distance
