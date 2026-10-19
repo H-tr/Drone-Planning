@@ -104,24 +104,22 @@ The pipeline is the template's, unchanged:
    Its motion-check `resolution` is 64: one check every 1.6 cm of
    translation, below the 1.9 cm diameter of the smallest sphere.
 
-The model has **126 spheres** (radius 9.5–79.5 mm). Coverage, measured by
-sampling 200k points on each original PX4 mesh (propeller blades at
-random spin angles) and testing them against the spheres in the link
-frame:
+The model has **126 spheres** (radius 9.5–79.5 mm), covering the original
+PX4 meshes (the propeller blades at every spin angle) except for thin
+slivers between sphere-tree sample points:
 
-| Link | Spheres | Mesh surface covered | Largest gap | Spheres reach beyond the mesh |
-|------|--------:|------:|------:|------:|
-| `base_link` (frame, skids, motor mounts) | 24 | 99.988 % | 1.8 mm | ≤ 66 mm |
-| `rotor_0` … `rotor_3` (propeller disc + bell) | 4 × 12 | 100 % | 0 | ≤ 61 mm |
-| `cgo3_mount_link` | 14 | 99.946 % | 0.7 mm | ≤ 15 mm |
-| `cgo3_vertical_arm_link` | 16 | 99.999 % | < 0.1 mm | ≤ 13 mm |
-| `cgo3_horizontal_arm_link` | 16 | 100 % | 0 | ≤ 15 mm |
-| `camera_link` | 8 | 100 % | 0 | ≤ 13 mm |
+| Link | Spheres |
+|------|--------:|
+| `base_link` (frame, skids, motor mounts) | 24 |
+| `rotor_0` … `rotor_3` (propeller disc + bell) | 4 × 12 |
+| `cgo3_mount_link` | 14 |
+| `cgo3_vertical_arm_link` | 16 |
+| `cgo3_horizontal_arm_link` | 16 |
+| `camera_link` | 8 |
 
-The uncovered samples are sub-2 mm slivers between sphere-tree sample
-points; `tests/test_collision_model.py` re-checks coverage through the
-compiled VAMP model at four configurations. Point obstacles are checked
-as points (`point_radius` 0): the spheres are the margin.
+`tests/test_collision_model.py` checks the coverage through the compiled
+VAMP model at four configurations. Point obstacles are checked as points
+(`point_radius` 0): the spheres are the margin.
 
 !!! note "Point clouds and link bounding spheres"
 
@@ -132,12 +130,9 @@ as points (`point_radius` 0): the spheres are the margin.
     `max_radius` is the largest single sphere (79.5 mm), not the largest
     bounding sphere (base_link's, 286 mm), so a bounding-sphere query can
     miss a point the link's spheres touch and a colliding configuration
-    passes (measured on the demo room at 2 cm: 1.2 % of colliding
-    configurations, penetrating up to 7.1 cm; 8 % of the demo-room plans
-    cut into an obstacle, by up to 2 cm). `tests/test_collision_model.py`
-    checks VAMP's verdict against a brute-force sphere–point check and is
-    an expected failure until upstream fixes this. Building the index takes
-    0.25 s and ~0.2 GB for the 100k-point demo room.
+    passes. `tests/test_collision_model.py` checks VAMP's verdict against
+    a brute-force sphere–point check and is an expected failure until
+    upstream fixes this.
 
 ## Limits
 

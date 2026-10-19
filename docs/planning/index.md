@@ -193,8 +193,7 @@ pixi run python -c "import sys, time, numpy as np; sys.path.insert(0, 'examples/
 Like every VAMP edge, a planned path is collision-free up to the motion
 resolution: edges are checked every 1/64 of configuration distance
 (1.6 cm of translation), so a point obstacle can graze a sphere between
-two checks — by under 1 mm for the 5–8 cm outer spheres (0.37 mm
-was the deepest over 320 demo-room paths re-checked every 1 mm).
+two checks.
 
 ## Low-level API
 

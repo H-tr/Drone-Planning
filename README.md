@@ -39,10 +39,10 @@ Planning subgroups (`drone_planning.x500.PLANNING_SUBGROUPS`):
 - `x500_whole_body` — 6 DOF: body + gimbal pan and tilt (alias `x500`)
 
 The collision model is **126 spheres** (foam → SRDF → cricket, the
-template's pipeline): they cover ≥ 99.95 % of every link's original PX4
-mesh surface (rotor discs swept by the spinning propellers: 100 %), with
-uncovered slivers under 2 mm. Point obstacles are checked as points:
-the spheres are the margin.
+template's pipeline), covering every link's original PX4 mesh (the rotor
+discs as swept by the spinning propellers) except for thin slivers;
+`tests/test_collision_model.py` checks the coverage. Point obstacles are checked as points: the spheres
+are the margin.
 
 Kinodynamic limits are PX4 v1.17 default parameters (`drone_planning/x500.py`):
 
