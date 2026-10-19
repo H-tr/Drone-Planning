@@ -8,7 +8,7 @@ import re
 
 import numpy as np
 import pytest
-from _shared import LEGS, WORKSPACE
+from _shared import LEGS, WORKSPACE, window_scene
 
 from drone_planning._ompl_vamp import OmplVampPlanner
 from drone_planning.planning import create_planner
@@ -118,3 +118,25 @@ def test_subgroup_inputs_are_checked():
         planner.set_subgroup([0, 1, 2], home + [0.0])
     with pytest.raises(ValueError):
         planner.set_subgroup([0, 1, 6], home)
+
+
+def test_body_subgroup_checks_the_frozen_gimbal():
+    """The body subgroup checks the whole X500, the gimbal held at its
+    frozen pose: its verdicts equal the full body's on the same poses."""
+    frozen = HOME_JOINTS.copy()
+    frozen[4:] = 1.0, -1.2  # pan right, tilt down
+    cloud = window_scene()
+    body = OmplVampPlanner([0, 1, 2, 3], frozen.tolist())
+    full = OmplVampPlanner()
+    for planner in (body, full):
+        planner.add_pointcloud(cloud, 0.0)
+    lower, upper = np.array([WORKSPACE[j] for j in WORKSPACE]).T
+    rng = np.random.default_rng(0)
+    poses = np.column_stack(
+        [rng.uniform(lower, upper, (2000, 3)), rng.uniform(-np.pi, np.pi, 2000)]
+    )
+    expected = full.validate_batch(
+        np.column_stack([poses, np.tile(frozen[4:], (2000, 1))])
+    )
+    assert 0 < expected.sum() < len(expected)
+    np.testing.assert_array_equal(body.validate_batch(poses), expected)
