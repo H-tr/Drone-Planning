@@ -182,7 +182,6 @@ class OmplVampPlanner:
         time_limit: float = 10.0,
         simplify: bool = True,
         interpolate: bool = True,
-        interpolate_count: int = 0,
         resolution: float = 64.0,
     ) -> PlanResult:
         """Plan a collision-free path from ``start`` to ``goal``.
@@ -195,11 +194,9 @@ class OmplVampPlanner:
             time_limit: Solver time limit in seconds.
             simplify: If true, run ``SimpleSetup::simplifySolution`` on the
                 returned path.
-            interpolate: If true, densify the simplified path: to
-                ``interpolate_count`` waypoints when it is ``> 0``, else
-                ``ceil(d * resolution)`` per edge of length ``d`` when
-                ``resolution > 0``, else OMPL's default.
-            interpolate_count: Target total waypoint count (0 disables).
+            interpolate: If true, densify the simplified path:
+                ``ceil(d * resolution)`` waypoints per edge of length ``d``
+                when ``resolution > 0``, else OMPL's default.
             resolution: Waypoints per unit of state-space distance.
         """
         ...
@@ -308,5 +305,10 @@ class OmplVampPlanner:
                 planner plans over, in DOF order.
             frozen_config: Full-body stance (6 values) for every joint
                 *not* in ``active_indices``.
+
+        Raises:
+            ValueError: For an index outside ``[0, 6)`` or a
+                ``frozen_config`` without 6 entries (the subgroup
+                constructor raises the same).
         """
         ...

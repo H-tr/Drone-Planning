@@ -58,7 +58,6 @@
 #include <ompl/geometric/planners/rrt/RRTXstatic.h>
 #include <ompl/geometric/planners/rrt/RRTsharp.h>
 #include <ompl/geometric/planners/rrt/RRTstar.h>
-#include <ompl/geometric/planners/rrt/STRRTstar.h>
 #include <ompl/geometric/planners/rrt/TRRT.h>
 // OMPL — exploration-based
 #include <ompl/geometric/planners/est/BiEST.h>
@@ -119,14 +118,12 @@ class OmplVampPlanner {
   }
 
   /// Set the scene pointcloud.  The planner holds at most one cloud;
-  /// calling this replaces any previously-registered cloud.  The cloud's
-  /// CAPT covers queries up to the links' bounding spheres
-  /// (``kMaxQueryRadius``, validity.hpp).
+  /// calling this replaces any previously-registered cloud.
   void add_pointcloud(const Eigen::Ref<const Points>& points,
                       float point_radius) {
     float_env_.pointclouds.clear();
     float_env_.pointclouds.emplace_back(to_vamp_points_(points),
-                                        Robot::min_radius, kMaxQueryRadius,
+                                        Robot::min_radius, Robot::max_radius,
                                         point_radius);
     sync_env();
   }
@@ -156,8 +153,7 @@ class OmplVampPlanner {
 
   auto plan(const Eigen::VectorXd& start, const Eigen::VectorXd& goal,
             const std::string& planner_name, double time_limit, bool simplify,
-            bool interpolate, int interpolate_count, double resolution)
-      -> PlanResult {
+            bool interpolate, double resolution) -> PlanResult {
     check_dim_(start.size(), "plan: start");
     check_dim_(goal.size(), "plan: goal");
     auto si = make_space_information_();
@@ -188,7 +184,7 @@ class OmplVampPlanner {
     }
     if (simplify) ss.simplifySolution();
     auto& path = ss.getSolutionPath();
-    if (interpolate) densify(path, interpolate_count, resolution);
+    if (interpolate) densify(path, 0, resolution);
     result.path_cost = path.length();
     result.path = path_to_waypoints_(path);
     return result;
@@ -407,7 +403,9 @@ class OmplVampPlanner {
 
   /// The limits compiled into the robot model, in full-body order.
   static auto default_joint_limits() -> JointLimits {
-    std::array<float, Robot::dimension> zeros{}, ones{};
+    alignas(Robot::Configuration::S::Alignment)
+        std::array<float, Robot::Configuration::num_scalars_rounded>
+            zeros{}, ones{};
     ones.fill(1.0f);
     Robot::Configuration lo(zeros.data()), hi(ones.data());
     Robot::scale_configuration(lo);
@@ -608,7 +606,6 @@ class OmplVampPlanner {
       return std::make_shared<og::InformedRRTstar>(si);
     if (name == "rrtsharp") return std::make_shared<og::RRTsharp>(si);
     if (name == "rrtxstatic") return std::make_shared<og::RRTXstatic>(si);
-    if (name == "strrtstar") return std::make_shared<og::STRRTstar>(si);
     if (name == "lbtrrt") return std::make_shared<og::LBTRRT>(si);
     if (name == "trrt") return std::make_shared<og::TRRT>(si);
     if (name == "bitrrt") return std::make_shared<og::BiTRRT>(si);

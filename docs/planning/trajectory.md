@@ -63,7 +63,7 @@ The result starts and ends at rest.
 
 !!! note "Skip OMPL's interpolation step"
 
-    Pass `interpolate=False` to `plan()` or `PlannerConfig` when you
+    Set `interpolate=False` in `PlannerConfig` when you
     time-parameterize the output.  The parameterizer resamples the path
     itself; OMPL's dense interpolation only adds knots (and cost —
     the spline fit is cubic in the number of knots).
@@ -111,11 +111,8 @@ and y bounds by √2 when the norm matters — or plan with
 
     TOPP-RA enforces the limits at its grid points; with constant path
     acceleration between them the joint velocity and acceleration can
-    exceed a limit slightly. On RRT-Connect paths through the X500 demo
-    room the largest excess per trajectory was 0.5 % in the median, 3 %
-    at the 90th percentile and up to 8 % (120 paths) — on the yaw and
-    gimbal, whose limits are tight. Scale the limits down
-    (`velocity_scaling`, `acceleration_scaling`) if they are hard.
+    exceed a limit slightly. Scale the limits down (`velocity_scaling`,
+    `acceleration_scaling`) if they are hard.
 
 ## Configuration knobs
 
@@ -169,7 +166,7 @@ traj = parameterize_path(path, vel_limits, acc_limits)
 A typical end-to-end pipeline:
 
 ```
-plan(start, goal, simplify=True, interpolate=False)
+plan(start, goal)        PlannerConfig(simplify=True, interpolate=False)
         │
         ▼
   (N, ndof) path          geometric, no timing

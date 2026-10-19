@@ -20,7 +20,6 @@ acceleration limits, for every subgroup.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Protocol, runtime_checkable
 
 import numpy as np
 
@@ -31,21 +30,6 @@ from drone_planning.types import (
     PlanningResult,
     PlanningStatus,
 )
-
-
-@runtime_checkable
-class MotionPlannerBase(Protocol):
-    """Protocol for motion planner backends."""
-
-    @property
-    def robot_name(self) -> str: ...
-
-    @property
-    def num_dof(self) -> int: ...
-
-    def plan(self, start: np.ndarray, goal: np.ndarray) -> PlanningResult: ...
-
-    def validate(self, configuration: np.ndarray) -> bool: ...
 
 
 class MotionPlanner:
@@ -243,10 +227,6 @@ class MotionPlanner:
         """``True`` if a pointcloud is currently registered."""
         return self._planner.has_pointcloud()
 
-    def clear_environment(self) -> None:
-        """Drop every registered obstacle (spheres and point clouds)."""
-        self._planner.clear_environment()
-
     # ── Point cloud filtering ────────────────────────────────────────
 
     def filter_pointcloud(
@@ -409,11 +389,9 @@ class MotionPlanner:
         goal = np.asarray(goal, dtype=np.float64)
 
         if not self._planner.validate(start):
-            return PlanningResult(
-                PlanningStatus.INVALID_START, None, 0, 0, float("inf")
-            )
+            return PlanningResult(PlanningStatus.INVALID_START, None, 0, float("inf"))
         if not self._planner.validate(goal):
-            return PlanningResult(PlanningStatus.INVALID_GOAL, None, 0, 0, float("inf"))
+            return PlanningResult(PlanningStatus.INVALID_GOAL, None, 0, float("inf"))
 
         if time_limit is None:
             time_limit = self._config.time_limit
@@ -425,19 +403,17 @@ class MotionPlanner:
             time_limit,
             self._config.simplify,
             self._config.interpolate,
-            self._config.interpolate_count,
             self._config.resolution,
         )
 
         if not result.solved:
             return PlanningResult(
-                PlanningStatus.FAILED, None, result.planning_time_ns, 0, float("inf")
+                PlanningStatus.FAILED, None, result.planning_time_ns, float("inf")
             )
         return PlanningResult(
             PlanningStatus.SUCCESS,
             np.array(result.path),
             result.planning_time_ns,
-            0,
             result.path_cost,
         )
 
@@ -623,13 +599,19 @@ class MotionPlanner:
             np.asarray(configurations, dtype=np.float64)
         )
 
-    def sample_valid(self) -> np.ndarray:
-        """Sample a random collision-free configuration."""
+    def sample_valid(self, max_samples: int = 100_000) -> np.ndarray:
+        """Sample a random collision-free configuration.
+
+        Raises:
+            RuntimeError: If none of ``max_samples`` uniform samples is valid.
+        """
         lo, hi = self.bounds
-        while True:
-            config = np.random.uniform(lo, hi)
-            if self._planner.validate(config):
-                return config
+        for _ in range(0, max_samples, 256):
+            batch = np.random.uniform(lo, hi, (256, self._ndof))
+            valid = np.flatnonzero(self.validate_batch(batch))
+            if valid.size:
+                return batch[valid[0]]
+        raise RuntimeError(f"no valid configuration in {max_samples} samples")
 
 
 def available_robots() -> list[str]:

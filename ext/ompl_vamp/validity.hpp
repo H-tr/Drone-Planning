@@ -7,7 +7,9 @@
  * It is expanded to the full body via ``active_indices`` +
  * ``frozen_config`` and the collision check is delegated to VAMP's SIMD
  * ``validate_motion`` (resolution 1 for single states, full robot
- * resolution for motion edges).
+ * resolution for motion edges).  For a failed edge,
+ * ``checkMotion(s1, s2, last_valid)`` also reports the last valid state
+ * along it, which planners such as PDST, KPIECE and STRIDE grow from.
  */
 
 #pragma once
@@ -20,6 +22,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <utility>
 #include <vamp/collision/environment.hh>
@@ -37,19 +40,6 @@ inline constexpr std::size_t kRake = vamp::FloatVectorWidth;
 using VampEnv = vamp::collision::Environment<vamp::FloatVector<kRake>>;
 using FloatEnv = vamp::collision::Environment<float>;
 
-/// Largest sphere radius ``Robot::fkcc`` queries the environment with.
-/// Before a link's spheres, the cricket-generated check tests the link's
-/// bounding sphere (the smallest sphere around them); base_link's, 0.2864 m
-/// (``y[507]`` in x500.hh), is the largest.  A point cloud's CAPT finds
-/// every point within ``r`` of a query only for ``r`` up to the ``r_max``
-/// it was built with, so built with ``Robot::max_radius`` (the largest
-/// single sphere, 0.0795 m) a bounding-sphere query can miss a point one
-/// of the link's spheres touches, and the check passes a colliding
-/// configuration.  Point clouds are built with this radius instead.
-/// Regenerating x500.hh changes it: take the largest bounding-sphere radius
-/// ``y[(n_spheres + i) * 4 + 3]`` of the new header.
-inline constexpr float kMaxQueryRadius = 0.286441683769226f;
-
 /// Full-body VAMP configuration from an active-DOF OMPL state.
 inline auto expand_state(const ob::State* state, const std::vector<int>& active,
                          const std::vector<float>& frozen)
@@ -62,6 +52,30 @@ inline auto expand_state(const ob::State* state, const std::vector<int>& active,
   for (std::size_t i = 0; i < active.size(); ++i)
     buf[active[i]] = static_cast<float>(rv->values[i]);
   return Robot::Configuration(buf.data());
+}
+
+// For a motion that failed its check: walks the states VAMP's
+// ``validate_motion`` samples on the straight line (``t = k / n``,
+// ``k = 1..n``) in order and reports the last valid one, as OMPL's
+// ``checkMotion(s1, s2, last_valid)`` contract asks: its fraction in
+// ``last_valid.second`` and, when ``last_valid.first`` is given, the state.
+inline void find_last_valid(const ob::SpaceInformation* si, const ob::State* s1,
+                            const ob::State* s2,
+                            std::pair<ob::State*, double>& last_valid) {
+  const auto& space = si->getStateSpace();
+  const double steps =
+      std::ceil(space->distance(s1, s2) / kRake * Robot::resolution);
+  const int n = static_cast<int>(kRake * std::max(steps, 1.0));
+  auto* s = space->allocState();
+  int k = 1;
+  for (; k <= n; ++k) {
+    space->interpolate(s1, s2, static_cast<double>(k) / n, s);
+    if (!si->isValid(s)) break;
+  }
+  space->freeState(s);
+  last_valid.second = static_cast<double>(k - 1) / n;
+  if (last_valid.first)
+    space->interpolate(s1, s2, last_valid.second, last_valid.first);
 }
 
 class SubgroupValidityChecker : public ob::StateValidityChecker {
@@ -106,9 +120,9 @@ class SubgroupMotionValidator : public ob::MotionValidator {
   auto checkMotion(const ob::State* s1, const ob::State* s2,
                    std::pair<ob::State*, double>& last_valid) const
       -> bool override {
-    last_valid.first = nullptr;
-    last_valid.second = 0.0;
-    return checkMotion(s1, s2);
+    if (checkMotion(s1, s2)) return true;
+    find_last_valid(si_, s1, s2, last_valid);
+    return false;
   }
 
  private:

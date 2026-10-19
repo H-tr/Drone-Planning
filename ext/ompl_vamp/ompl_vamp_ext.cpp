@@ -177,7 +177,7 @@ NB_MODULE(_ompl_vamp, m) {
       .def("plan", &OmplVampPlanner::plan, nb::arg("start"), nb::arg("goal"),
            nb::arg("planner_name") = "rrtc", nb::arg("time_limit") = 10.0,
            nb::arg("simplify") = true, nb::arg("interpolate") = true,
-           nb::arg("interpolate_count") = 0, nb::arg("resolution") = 64.0)
+           nb::arg("resolution") = 64.0)
       .def("plan_kinodynamic", &OmplVampPlanner::plan_kinodynamic,
            nb::arg("start"), nb::arg("start_velocity"), nb::arg("goal"),
            nb::arg("time_limit"), nb::arg("settings"),

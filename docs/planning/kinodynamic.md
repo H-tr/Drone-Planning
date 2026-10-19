@@ -124,31 +124,38 @@ resolution like every VAMP edge: the spheres are the margin.
 
 `examples/planning/kinodynamic.py` plans the four legs of the demo room
 (`examples/planning/_shared.py`: a wall with a 1.2 × 1.0 m window and a
-low beam, 100k points) 50 times each. Planning times per call on one core
-of an AMD EPYC 7543; "peak / limit" is the largest velocity or
-acceleration over all trajectories as a fraction of its limit (horizontal
-pair in norm), on a 1 ms resampling.
+low beam, 99,715 points) 50 times each, with FLASK and with RRT-Connect
+(`plan()`). "Peak / limit" is the largest velocity or acceleration over
+all trajectories as a fraction of its limit (horizontal pair in norm), on
+a 1 ms resampling.
 
-| Subgroup | Leg | FLASK success | FLASK median / p95 | Duration | Peak / limit | RRT-Connect median (solve / `plan()`) |
-|---|---|---|---|---|---|---|
-| `x500_base` | through | 50/50 | 11.6 / 25.9 ms | 9.7 s | 1.000 | 2.5 / 17.4 ms |
-| `x500_base` | back | 50/50 | 9.4 / 25.1 ms | 9.8 s | 1.000 | 2.3 / 13.4 ms |
-| `x500_base` | diagonal | 50/50 | 6.4 / 18.4 ms | 5.8 s | 1.000 | 1.2 / 6.8 ms |
-| `x500_base` | look down | 50/50 | 9.4 / 23.9 ms | 9.1 s | 1.000 | 2.3 / 15.4 ms |
-| `x500_whole_body` | through | 50/50 | 11.0 / 29.1 ms | 9.7 s | 1.000 | 3.3 / 18.0 ms |
-| `x500_whole_body` | back | 50/50 | 12.3 / 29.6 ms | 9.8 s | 1.000 | 3.4 / 16.0 ms |
-| `x500_whole_body` | diagonal | 50/50 | 5.6 / 18.4 ms | 5.8 s | 1.000 | 1.2 / 7.5 ms |
-| `x500_whole_body` | look down | 50/50 | 12.5 / 28.6 ms | 9.4 s | 1.000 | 2.3 / 15.4 ms |
+```bash
+pixi run python examples/planning/kinodynamic.py --trials=50
+```
 
-RRT-Connect succeeds 50/50 on every leg; `plan()` includes OMPL's path
-simplification. TOPP-RA times the RRT-Connect paths, under per-joint
-limits, in 5.8–9.2 s.
+Measured at commit `2fefdc3` on 2026-10-19, one core of an AMD EPYC 7543;
+raw output in
+`/nas/pollux/tianrun/drone-planning-flask/g1_kinodynamic_example_50.txt`.
+
+| Subgroup | Leg | FLASK success | FLASK median / p95 | Duration | Peak / limit | RRT-Connect success | RRT-Connect solve median / p95 | `plan()` median |
+|---|---|---|---|---|---|---|---|---|
+| `x500_base` | through | 50/50 | 6.7 / 19.8 ms | 9.4 s | 1.000 | 50/50 | 1.2 / 3.3 ms | 7.6 ms |
+| `x500_base` | back | 50/50 | 5.3 / 14.2 ms | 9.8 s | 1.000 | 50/50 | 1.2 / 3.3 ms | 6.3 ms |
+| `x500_base` | diagonal | 50/50 | 4.2 / 11.2 ms | 5.9 s | 1.000 | 50/50 | 1.2 / 3.3 ms | 4.1 ms |
+| `x500_base` | look down | 50/50 | 5.3 / 10.3 ms | 9.1 s | 1.000 | 50/50 | 1.2 / 3.9 ms | 7.2 ms |
+| `x500_whole_body` | through | 50/50 | 5.8 / 15.5 ms | 9.8 s | 1.000 | 50/50 | 1.4 / 3.4 ms | 8.1 ms |
+| `x500_whole_body` | back | 50/50 | 6.1 / 15.0 ms | 9.4 s | 1.000 | 50/50 | 1.2 / 4.0 ms | 7.0 ms |
+| `x500_whole_body` | diagonal | 50/50 | 3.7 / 13.2 ms | 5.8 s | 1.000 | 50/50 | 1.2 / 3.3 ms | 4.1 ms |
+| `x500_whole_body` | look down | 50/50 | 8.6 / 22.1 ms | 9.2 s | 1.000 | 50/50 | 1.2 / 2.3 ms | 7.0 ms |
+
+`plan()` includes OMPL's path simplification. TOPP-RA times the
+RRT-Connect paths, under per-joint limits, in 6.0–9.0 s (median per leg).
 
 Takeaways:
 
-* FLASK returns a trajectory within every limit in about 10 ms; the
-  geometric planner finds a path in 1–3 ms but needs simplification and
-  time parameterization on top.
+* FLASK returns a trajectory within every limit in 3.7–8.6 ms (median
+  per leg); the geometric planner finds a path in 1.2–1.4 ms but needs
+  simplification and time parameterization on top.
 * Durations are set by the slow yaw (20 °/s²) and gimbal (30 °/s)
   limits more than by the 12 m/s speed: tree nodes sample random yaw and
   gimbal angles, and shortcuts that remove a detour are kept only when

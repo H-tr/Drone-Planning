@@ -7,7 +7,7 @@
     ---
 
     All of [OMPL](https://ompl.kavrakilab.org/)'s mature sampling-based
-    planners (31 exposed), driven by one uniform Python call. No glue
+    planners (30 exposed), driven by one uniform Python call. No glue
     code to swap planners — change a string.
 
 -   __VAMP backend__
@@ -16,7 +16,8 @@
 
     Collision checking runs through [VAMP](https://github.com/KavrakiLab/vamp)'s
     SIMD-vectorised sphere pipeline. Point-cloud obstacles are
-    broadphase-indexed and checked in **~5 μs per config**.
+    broadphase-indexed; a check takes microseconds (see
+    [below](#standalone-collision-checking)).
 
 -   __C++ hot path__
 
@@ -69,24 +70,35 @@ The `planner_name` field of
 [`PlannerConfig`](../api/types.md#drone_planning.types.planning.PlannerConfig)
 accepts any of:
 
-=== "Feasibility (single-query, returns on first solution)"
+=== "Return on the first solution"
 
     | Family | Planners |
     |---|---|
-    | RRT | `rrtc`, `rrt`, `trrt`, `bitrrt`, `strrtstar`, `lbtrrt` |
+    | RRT | `rrtc`, `rrt`, `trrt`, `bitrrt` |
     | KPIECE | `kpiece`, `bkpiece`, `lbkpiece` |
-    | PRM | `prm`, `lazyprm`, `spars`, `spars2` |
+    | PRM | `prm`, `lazyprm` |
     | Exploration | `est`, `biest`, `sbl`, `stride`, `pdst` |
-    | RRT\*-feasible | `rrtsharp`, `rrtxstatic` |
+    | FMT | `fmt`, `bfmt` (after one batch of samples) |
 
-=== "Asymptotically optimal (keep refining until budget)"
+=== "Run the whole budget (refine the cost)"
 
     | Family | Planners |
     |---|---|
-    | RRT\* | `rrtstar`, `informed_rrtstar` |
+    | RRT\* | `rrtstar`, `informed_rrtstar`, `rrtsharp`, `rrtxstatic`, `lbtrrt` |
     | Informed trees | `bitstar`, `abitstar`, `aitstar`, `eitstar`, `blitstar` |
-    | FMT | `fmt`, `bfmt` |
     | PRM\* | `prmstar`, `lazyprmstar` |
+    | Sparse roadmaps | `spars`, `spars2` |
+
+Which group a planner falls in was measured: one solve per planner on
+the first demo-room leg for `x500_base` with a 1 s budget, at commit
+`580687f` on 2026-10-19 on an AMD EPYC 7543 (raw output in
+`/nas/pollux/tianrun/drone-planning-flask/g1b_planner_budget.txt`); the
+second group's solves took the whole second, the first group's at most
+0.06 s:
+
+```bash
+pixi run python -c "import sys; sys.path.insert(0, 'examples/planning'); from _shared import LEGS, WORKSPACE, window_scene; from drone_planning.planning import create_planner; from drone_planning.types import PlannerConfig; from tests.test_planner_checks import OMPL_NAMES; _, s, g = LEGS[0]; [print(n, create_planner('x500_base', config=PlannerConfig(planner_name=n, time_limit=1.0, joint_limits=WORKSPACE), pointcloud=window_scene()).plan(s[:4], g[:4]).planning_time_ns / 1e9, flush=True) for n in OMPL_NAMES]"
+```
 
 A plan is `success` only for an exact solution: OMPL's approximate
 solutions, which stop short of the goal, are reported as `FAILED`.
@@ -94,7 +106,7 @@ solutions, which stop short of the goal, are reported as `FAILED`.
 ## Minimal example
 
 <video controls loop muted playsinline width="100%">
-  <source src="../../assets/motion_planning.mp4" type="video/mp4">
+  <source src="../assets/motion_planning.mp4" type="video/mp4">
 </video>
 
 ```python
@@ -130,9 +142,9 @@ PlannerConfig(
     # Which OMPL planner to run — see "Supported planners" above.
     planner_name="rrtc",
 
-    # Wall-clock ceiling for the search.  Feasibility planners return
-    # on the first solution, so this is just a safety cap.  AO planners
-    # (rrtstar, bitstar, …) run until the budget to refine cost.
+    # Wall-clock ceiling for the search.  The first group above returns
+    # on the first solution, so this is just a safety cap; the others
+    # (rrtstar, bitstar, spars, …) run until the budget to refine cost.
     time_limit=1.0,
 
     # Inflation of every obstacle point.  0 (default): points are checked
@@ -142,13 +154,11 @@ PlannerConfig(
     # After the raw path, run OMPL's SimpleSetup shortcutter.
     simplify=True,
 
-    # Resample the (simplified) path densely.  Pick one knob:
-    #   interpolate_count > 0   → exactly this many total waypoints
+    # Resample the (simplified) path densely:
     #   resolution > 0.0        → ceil(edge_length * resolution) samples per edge
-    #   both 0                  → OMPL's default longest-valid-segment fraction
+    #   0                       → OMPL's default longest-valid-segment fraction
     interpolate=True,
     resolution=64.0,
-    interpolate_count=0,
 
     # Joint ranges the planner samples in, by joint name (the workspace).
     joint_limits={"base_z_joint": (0.3, 2.7)},
@@ -163,7 +173,7 @@ same pipeline is exposed as standalone methods on `MotionPlanner`:
 ```python
 result = planner.plan(start, goal)
 smooth = planner.simplify_path(result.path, time_limit=1.0)
-dense  = planner.interpolate_path(smooth, resolution=128.0)     # or count=200
+dense  = planner.interpolate_path(smooth, resolution=128.0)     # or count=200, resolution=0.0
 ```
 
 `simplify_path` only consults the motion validator; `interpolate_path`
@@ -182,11 +192,19 @@ into a VAMP `ConfigurationBlock<rake>` and runs **one** `fkcc<rake>`
 call per block. Per-config result is preserved: when a packed block
 fails, only that block is re-checked configuration by configuration.
 
+It costs 2.65 μs per configuration for 100,000 uniform random whole-body
+configurations in the demo room (99,715 points), measured at commit
+`2fefdc3` on 2026-10-19 on one core of an AMD EPYC 7543 (raw output in
+`/nas/pollux/tianrun/drone-planning-flask/g1_validate_batch.txt`):
+
+```bash
+pixi run python -c "import sys, time, numpy as np; sys.path.insert(0, 'examples/planning'); from _shared import WORKSPACE, window_scene; from drone_planning.planning import create_planner; from drone_planning.types import PlannerConfig; p = create_planner('x500', config=PlannerConfig(joint_limits=WORKSPACE), pointcloud=window_scene()); lo, hi = p.bounds; q = np.random.default_rng(0).uniform(lo, hi, (100000, 6)); p.validate_batch(q[:1000]); t = time.perf_counter(); p.validate_batch(q); print(f'{(time.perf_counter() - t) / len(q) * 1e6:.2f} us per configuration')"
+```
+
 Like every VAMP edge, a planned path is collision-free up to the motion
 resolution: edges are checked every 1/64 of configuration distance
 (1.6 cm of translation), so a point obstacle can graze a sphere between
-two checks — by under 1 mm for the 5–8 cm outer spheres (0.37 mm
-was the deepest over 320 demo-room paths re-checked every 1 mm).
+two checks.
 
 ## Low-level API
 

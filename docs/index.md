@@ -19,7 +19,7 @@ unified Python API.
     For inference: **`numpy`, `pin`**. No conda required, no ROS, no
     MoveIt. One `pip install`.
 
--   :material-source-branch:{ .lg .middle } __31 planners__
+-   :material-source-branch:{ .lg .middle } __30 planners__
 
     ---
 
@@ -31,9 +31,10 @@ unified Python API.
 
     ---
 
-    VAMP SIMD collision backend: **~5 μs per check** of the 126-sphere
-    model against a 225k-point cloud. RRT-Connect solves the demo room
-    in 1–3 ms (median), FLASK returns a timed trajectory in 7–16 ms.
+    VAMP SIMD collision backend: microsecond checks of the 126-sphere
+    model ([measured](planning/index.md#standalone-collision-checking));
+    RRT-Connect and FLASK plan the demo room in milliseconds
+    ([measured](planning/kinodynamic.md#results-on-the-demo-room)).
 
 </div>
 
