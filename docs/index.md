@@ -1,7 +1,8 @@
 # Drone Planning
 
-A planning library for the **Holybro X500 V2 quadrotor with a pan-tilt
-gimbal camera** — geometric motion planning (OMPL frontend, VAMP SIMD
+A planning library for drones with a pan-tilt gimbal camera — the
+**Holybro X500 V2 quadrotor** and **PHANTOM's drone** (one collision
+sphere) — geometric motion planning (OMPL frontend, VAMP SIMD
 collision backend), kinodynamic planning (FLASK) under PX4's velocity and
 acceleration limits, and time-optimal trajectory generation, all behind a
 unified Python API.
@@ -48,7 +49,8 @@ unified Python API.
 
     PX4's official `x500_gimbal` Gazebo model converted to URDF —
     meshes, poses and dimensions kept — spherized with foam and compiled
-    to a VAMP collision model with cricket.
+    to a VAMP collision model with cricket; and PHANTOM's drone, one
+    sphere of 0.30 m.
 
 -   :material-map-marker-path:{ .lg .middle } [__Motion Planning__](planning/index.md)
 
@@ -56,7 +58,7 @@ unified Python API.
 
     OMPL frontend + VAMP SIMD backend. Body-only and whole-body
     subgroups, point-cloud obstacles checked as points (the spheres are
-    the margin).
+    the margin), or a signed distance grid (ESDF).
 
 -   :material-timer-outline:{ .lg .middle } [__Time Parameterization__](planning/trajectory.md)
 
