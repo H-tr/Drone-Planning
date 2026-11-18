@@ -121,9 +121,10 @@ class KinodynamicConfig:
     """Parameters for :meth:`~drone_planning.planning.MotionPlanner.plan_kinodynamic`.
 
     The planner is FLASK (flatness-based kinodynamic RRT-Connect).  The
-    velocity and acceleration limits default to the PX4 values in
-    :mod:`drone_planning.x500`; ``velocity_scale`` / ``acceleration_scale``
-    shrink or grow all of them at once.
+    velocity and acceleration limits are the robot's: the PX4 values in
+    :mod:`drone_planning.x500`, or PHANTOM's in :mod:`drone_planning.drone`;
+    ``velocity_scale`` / ``acceleration_scale`` shrink or grow all of them
+    at once.
     """
 
     time_limit: float = 1.0

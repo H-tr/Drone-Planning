@@ -84,7 +84,7 @@ plugins:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
-  - Robot Model: robot.md
+  - Robot Models: robot.md
   - Motion Planning:
       - Overview: planning/index.md
       - Subgroup planning: planning/subgroup.md

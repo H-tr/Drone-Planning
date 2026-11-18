@@ -21,3 +21,20 @@ def assert_collision_free(planner, configs: np.ndarray) -> None:
     for run in np.split(bad, np.flatnonzero(np.diff(bad) > 1) + 1) if bad.size else []:
         gap = configs[run[0] - 1 : run[-1] + 2]
         assert np.linalg.norm(np.diff(gap, axis=0), axis=1).sum() < CHECK_STEP
+
+
+def lattice(lower, upper, spacing):
+    """``(X, Y, Z, 3)`` lattice points from ``lower`` to ``upper`` (m, both
+    included) and the world position of lattice point ``(0, 0, 0)``."""
+    axes = [np.arange(lo, hi + spacing / 2, spacing) for lo, hi in zip(lower, upper)]
+    return np.stack(np.meshgrid(*axes, indexing="ij"), -1), [a[0] for a in axes]
+
+
+def box_distance(points, lower, upper):
+    """Signed distance (m, negative inside) from ``points`` to the box
+    ``[lower, upper]``."""
+    center = (np.asarray(lower) + np.asarray(upper)) / 2
+    half = (np.asarray(upper) - np.asarray(lower)) / 2
+    q = np.abs(points - center) - half
+    outside = np.linalg.norm(np.maximum(q, 0.0), axis=-1)
+    return outside + np.minimum(q.max(axis=-1), 0.0)

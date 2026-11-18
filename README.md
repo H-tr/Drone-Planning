@@ -1,7 +1,8 @@
 # Drone-Planning
 
-A motion planning library for the **Holybro X500 V2 quadrotor with a
-pan-tilt gimbal camera**. Same public API and module layout as its sister
+A motion planning library for drones with a pan-tilt gimbal camera: the
+**Holybro X500 V2 quadrotor** and **PHANTOM's drone** (a simple model with
+one collision sphere). Same public API and module layout as its sister
 packages [Fetch-Planning](https://github.com/H-tr/Fetch-Planning) and
 Autolife-Planning — OMPL planners over a VAMP SIMD collision backend,
 FLASK kinodynamic planning and TOPP-RA time parameterization — so code
@@ -15,7 +16,18 @@ Documentation: <https://h-tr.github.io/Drone-Planning/>
 
 ---
 
-## The robot
+## The robots
+
+| Robot name | Model | Collision model | Limits |
+|---|---|---|---|
+| `x500` (default) | Holybro X500 V2 with PX4's gimbal | 126 spheres | PX4 v1.17 defaults (`drone_planning/x500.py`) |
+| `drone` | PHANTOM's drone | 1 sphere, radius 0.30 m | PHANTOM's (`drone_planning/drone.py`) |
+
+Both robots have 6 DOF in the same order: the body `(x, y, z, yaw)`, then
+the camera pan and tilt. Pick a robot by its name, for example
+`create_planner("drone")` or `OmplVampPlanner("drone")`.
+
+### X500
 
 The model is PX4's official Gazebo `x500_gimbal`
 ([PX4-gazebo-models](https://github.com/PX4/PX4-gazebo-models): `x500` +
@@ -52,6 +64,42 @@ Kinodynamic limits are PX4 v1.17 default parameters (`drone_planning/x500.py`):
 | vertical `z` | −1.5 … 3 m/s `MPC_Z_VEL_MAX_DN/UP` | −3 … 4 m/s² `MPC_ACC_DOWN/UP_MAX` |
 | yaw | 60 °/s `MPC_YAWRAUTO_MAX` | 20 °/s² `MPC_YAWRAUTO_ACC` |
 | gimbal pan / tilt | 30 °/s `MNT_RATE_YAW/PITCH` | 97 / 300 rad/s² (model torque cap) |
+
+### PHANTOM's drone
+
+The drone of the PHANTOM planner (`phantom/robot/drone.urdf` in
+H-tr/PHANTOM-Planner). The flight controller holds roll and pitch, so the
+body is position and yaw. The collision model is **one sphere** of radius
+0.30 m at the body centre. The camera hangs 6 cm below the body centre;
+the gimbal links have no collision geometry, so the camera angles never
+change whether the drone collides.
+
+| Index | Joint | Group | Range |
+|------:|-------|-------|-------|
+| 0 | `base_x_joint` | base | −10 … 10 m (virtual, world frame) |
+| 1 | `base_y_joint` | base | −10 … 10 m |
+| 2 | `base_z_joint` | base | 0 … 10 m (z up) |
+| 3 | `base_yaw_joint` | base | −π … π (counter-clockwise from +x) |
+| 4 | `camera_pan` | gimbal | −90° … 90° (positive turns **left**) |
+| 5 | `camera_tilt` | gimbal | −90° … 30° (positive looks up) |
+
+Planning subgroups (`drone_planning.drone.PLANNING_SUBGROUPS`):
+
+- `drone_base` — 4 DOF: `(x, y, z, yaw)`, gimbal held
+- `drone_whole_body` — 6 DOF: body + gimbal pan and tilt (alias `drone`)
+
+Kinodynamic limits are PHANTOM's (simulated values, not hardware ratings):
+
+| | Velocity | Acceleration |
+|---|---|---|
+| `x`, `y`, `z`, each | 1.5 m/s | 1.0 m/s² |
+| horizontal `(x, y)`, norm | 1.5 m/s | 1.0 m/s² |
+| yaw | 1.5 rad/s | 3.0 rad/s² |
+| camera pan / tilt | 1.0 rad/s | 2.0 rad/s² |
+
+PHANTOM gives one limit per axis. FLASK also limits the horizontal norm,
+so that limit takes the per-axis value: a diagonal flight is a little
+slower than PHANTOM allows.
 
 ---
 
@@ -93,11 +141,13 @@ for callers (e.g. PHANTOM) that drive it directly:
 ```python
 from drone_planning._ompl_vamp import KinodynamicSettings, OmplVampPlanner
 
-planner = OmplVampPlanner()                               # full body, 6 DOF
+planner = OmplVampPlanner("drone")                        # full body, 6 DOF
+# OmplVampPlanner() and OmplVampPlanner("x500") are the X500.
 planner.dimension()                                       # 6
-lower, upper = planner.default_joint_limits()             # full-body order
+lower, upper = planner.default_joint_limits()             # this robot's, full-body order
 planner.set_joint_limits(lower, upper)
 planner.set_subgroup([0, 1, 2, 3], full_configuration)    # body; gimbal frozen
+planner.set_distance_grid(esdf, origin, spacing)          # replaces the grid
 planner.add_pointcloud(points_float32_nx3, 0.0)           # replaces the cloud
 result = planner.plan(start, goal, planner_name="rrtc", time_limit=1.0,
                       simplify=True, interpolate=False)
@@ -105,10 +155,25 @@ result.solved, result.path                                 # bool, (N, 4) array
 result = planner.plan_kinodynamic(start, start_velocity, goal, 1.0, settings)
 ```
 
-`solved` is true only for an exact solution (an approximate OMPL
-solution, which stops short of the goal, is not solved).
-`MotionPlanner._kinodynamic_settings` shows how `KinodynamicSettings` is
-filled from the PX4 limits.
+`OmplVampPlanner(robot, active_indices, frozen_config)` makes the
+subgroup planner in one step. `solved` is true only for an exact solution
+(an approximate OMPL solution, which stops short of the goal, is not
+solved). `MotionPlanner._kinodynamic_settings` shows how
+`KinodynamicSettings` is filled from the robot's limits.
+
+**Distance grid (ESDF).** `set_distance_grid(distances, origin, spacing)`
+takes a signed distance field: the distance (m) from each point of a
+regular 3-D lattice to the nearest obstacle, positive in free space.
+`distances` is a float32 `(X, Y, Z)` array in C order, `origin` is the
+world position of lattice point `(0, 0, 0)` and `spacing` gives the
+lattice step along x, y and z. A robot sphere is free when the
+interpolated distance at its centre is at least its radius **and** the
+sphere lies wholly inside the lattice's box. The planner reads the array
+in place, without a copy, and keeps it alive, so change its values only
+between queries. Other dtypes or orders raise `TypeError` (a converted
+array would be a copy); `MotionPlanner.set_distance_grid` converts for
+you. `remove_distance_grid()` and `has_distance_grid()` work like their
+point-cloud versions.
 
 ---
 
@@ -140,8 +205,10 @@ and the cost of a collision check in
          │
 ┌────────▼───────────────────────────────────────────────────────┐
 │              VAMP backend  (header-only, SIMD)                 │
-│   vamp::robots::X500 (126 spheres), generated by cricket       │
-│   point clouds in a CAPT built for Robot::max_radius           │
+│   vamp::robots::X500 (126 spheres), vamp::robots::Drone (1),   │
+│   generated by cricket                                         │
+│   point clouds in a CAPT built for Robot::max_radius;          │
+│   distance grids read by trilinear interpolation               │
 └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -158,17 +225,18 @@ Drone-Planning/
 │
 ├── drone_planning/             # Python package (mirrors fetch_planning/)
 │   ├── x500.py                 # 6-DOF X500 layout (joint groups, HOME, PX4 limits, …)
+│   ├── drone.py                # 6-DOF layout of PHANTOM's drone (PHANTOM's limits)
 │   ├── types/                  # SE3Pose, PlannerConfig, KinodynamicConfig, …
 │   ├── trajectory/             # TOPP-RA + FLASK trajectories
 │   ├── kinematics/             # Pinocchio FK (e.g. the camera pose)
 │   ├── planning/               # MotionPlanner, create_planner
 │   ├── envs/                   # PyBullet scene wrapper
 │   ├── utils/                  # rotations, PyBullet helpers, video recorder
-│   └── resources/robot/x500/   # x500.urdf + x500_spherized.urdf + x500.srdf + meshes
+│   └── resources/robot/        # x500/ (URDFs, SRDF, meshes), drone/ (URDFs, SRDF)
 │
 ├── ext/
 │   ├── ompl_vamp/              # nanobind OMPL↔VAMP bridge + FLASK
-│   │   └── include/vamp/robots/x500.hh   # generated by cricket
+│   │   └── include/vamp/robots/  # x500.hh, drone.hh: generated by cricket
 │   └── time_parameterization/  # vendored TOPP-RA C++ core (nanobind)
 │
 ├── scripts/                    # build_robot.sh (PX4 SDF → URDF), spherize_robot.sh,
@@ -178,8 +246,10 @@ Drone-Planning/
 └── third_party/                # vamp, ompl, cricket, foam
 ```
 
-Rebuild the robot model end to end with `pixi run generate-fk` (PX4 SDF →
+Rebuild the X500 model end to end with `pixi run generate-fk` (PX4 SDF →
 URDF → foam → cricket); it reproduces the committed files byte for byte.
+The drone's model needs only the cricket step: `pixi run
+generate-fk-drone` (`scripts/generate_fk.sh drone`).
 
 ---
 

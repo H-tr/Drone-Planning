@@ -74,4 +74,5 @@ pixi run foam-build
 ```
 
 `pixi run test` runs the test suite; `pixi run generate-fk` rebuilds the
-robot model end to end (see [Robot Model](robot.md)).
+X500 model end to end and `pixi run generate-fk-drone` the model of
+PHANTOM's drone (see [Robot Models](robot.md)).

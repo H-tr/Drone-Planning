@@ -6,8 +6,8 @@
  * via Differential Flatness" (T-RO 2026):
  *
  *   * Tree nodes are flat states ``z = (y, y_dot)``; see
- *     ``flat_trajectory.hpp`` for the X500's flat outputs (every active
- *     DOF: position, yaw and the gimbal joints).
+ *     ``flat_trajectory.hpp`` for the flat outputs (every active DOF:
+ *     position, yaw and the gimbal joints, the same for both robots).
  *   * Every edge is the closed-form LQMT motion — the cubic Hermite
  *     between its endpoint states — with the cost-optimal duration T*
  *     (Eq. 26/28), optionally stretched until the velocity /
@@ -40,8 +40,8 @@
 
 namespace drone_planning {
 
-/// X500 joints whose velocity / acceleration are bounded in norm:
-/// base_x_joint and base_y_joint (horizontal flight).
+/// Joints whose velocity / acceleration are bounded in norm:
+/// base_x_joint and base_y_joint (horizontal flight), on both robots.
 inline constexpr std::array<int, 2> kHorizontalJoints{0, 1};
 
 struct KinodynamicSettings {
@@ -98,8 +98,11 @@ struct KinodynamicResult {
   std::size_t edges_checked = 0;
 };
 
+template <typename Spec>
 class FlaskPlanner {
  public:
+  using Robot = typename Spec::Robot;
+
   FlaskPlanner(const VampEnv& env, const std::vector<int>& active_indices,
                const std::vector<float>& frozen_config,
                const std::vector<double>& lower,

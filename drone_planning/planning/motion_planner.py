@@ -5,21 +5,27 @@ collision checking.  The entire planning pipeline runs in C++ via
 the ``_ompl_vamp`` extension — Python only crosses the boundary
 once per ``plan()`` call.
 
+Two robots share the package: the Holybro X500 (``x500_*`` subgroups,
+:mod:`drone_planning.x500`) and PHANTOM's drone (``drone_*``,
+:mod:`drone_planning.drone`).  Both have a 6-DOF configuration — the
+body ``(x, y, z, yaw)`` followed by the gimbal pan and tilt.
+
 Supports subgroup planning: each subgroup operates on a reduced
 state space while frozen joints are expanded to the full 6-DOF
-X500 config before collision checks.  The body (x, y, z, yaw) is
+config before collision checks.  The body (x, y, z, yaw) is
 fully actuated — the flight controller holds roll and pitch — so
 every subgroup plans in a plain ``RealVectorStateSpace``.
 
 :meth:`MotionPlanner.plan_kinodynamic` is the kinodynamic alternative:
 FLASK (flatness-based kinodynamic RRT-Connect) returns a
-time-parameterised trajectory that respects the PX4 velocity /
+time-parameterised trajectory that respects the robot's velocity /
 acceleration limits, for every subgroup.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
+from types import ModuleType
 
 import numpy as np
 
@@ -30,6 +36,18 @@ from drone_planning.types import (
     PlanningResult,
     PlanningStatus,
 )
+
+
+def _robot_module(robot_name: str) -> ModuleType:
+    """The robot constants module that defines ``robot_name``."""
+    from drone_planning import drone, x500
+
+    for module in (x500, drone):
+        if robot_name == module.ROBOT_NAME or robot_name in module.PLANNING_SUBGROUPS:
+            return module
+    raise ValueError(
+        f"Unknown robot name '{robot_name}'. Use one of: {available_robots()}"
+    )
 
 
 class MotionPlanner:
@@ -52,29 +70,33 @@ class MotionPlanner:
         base_config: np.ndarray | None = None,
     ) -> None:
         from drone_planning._ompl_vamp import OmplVampPlanner
-        from drone_planning.x500 import HOME_JOINTS
 
         if config is None:
             config = PlannerConfig()
 
         self._config = config
+        self._robot = _robot_module(robot_name)
         self._robot_name = robot_name
 
         # Frozen 6-DOF joint values for any joint not controlled by
-        # this planner.  Defaults to HOME_JOINTS, but the caller can
-        # pass any 6-DOF array — e.g. the live state of the drone — so
-        # the inactive joints are pinned wherever they currently are.
+        # this planner.  Defaults to the robot's HOME_JOINTS, but the
+        # caller can pass any 6-DOF array — e.g. the live state of the
+        # drone — so the inactive joints are pinned wherever they
+        # currently are.
+        home = self._robot.HOME_JOINTS
         if base_config is None:
-            base_config = HOME_JOINTS
+            base_config = home
         self._base_config = np.asarray(base_config, dtype=np.float64).copy()
-        if self._base_config.shape != HOME_JOINTS.shape:
+        if self._base_config.shape != home.shape:
             raise ValueError(
-                f"base_config must have shape {HOME_JOINTS.shape}, "
+                f"base_config must have shape {home.shape}, "
                 f"got {self._base_config.shape}"
             )
 
         active_indices = self._resolve_subgroup(robot_name)
-        self._planner = OmplVampPlanner(active_indices, self._base_config.tolist())
+        self._planner = OmplVampPlanner(
+            self._robot.ROBOT_NAME, active_indices, self._base_config.tolist()
+        )
         self._apply_subgroup_state(active_indices)
 
         if config.joint_limits:
@@ -85,29 +107,33 @@ class MotionPlanner:
 
     # ── Subgroup resolution ───────────────────────────────────────────
 
-    @staticmethod
-    def _resolve_subgroup(robot_name: str) -> list[int]:
+    def _resolve_subgroup(self, robot_name: str) -> list[int]:
         """Translate a subgroup name into active joint indices.
 
-        Accepts both the explicit ``"x500_whole_body"`` name and the
-        shorter alias ``"x500"`` for the full 6-DOF body.
+        Accepts both the explicit subgroup names (``"x500_whole_body"``,
+        ``"drone_base"``, ...) and the robot names ``"x500"`` and
+        ``"drone"``, aliases for the full 6-DOF body.
         """
-        from drone_planning.x500 import PLANNING_SUBGROUPS, x500_robot_config
-
-        name = "x500_whole_body" if robot_name == "x500" else robot_name
-        if name not in PLANNING_SUBGROUPS:
+        subgroups = self._robot.PLANNING_SUBGROUPS
+        if robot_name == self._robot.ROBOT_NAME:
+            robot_name = f"{robot_name}_whole_body"
+        if robot_name not in subgroups:
             raise ValueError(
-                f"Unknown robot name '{robot_name}'. "
-                f"Use one of: {available_robots()}"
+                f"'{robot_name}' is not a subgroup of {self._robot.ROBOT_NAME}; "
+                f"use one of: {[self._robot.ROBOT_NAME, *sorted(subgroups)]}"
             )
-        full_names = x500_robot_config.joint_names
-        return [full_names.index(j) for j in PLANNING_SUBGROUPS[name]["joints"]]
+        full_names = self._full_names
+        return [full_names.index(j) for j in subgroups[robot_name]["joints"]]
+
+    @property
+    def _full_names(self) -> list[str]:
+        """Joint names of the full body, in configuration order."""
+        whole_body = f"{self._robot.ROBOT_NAME}_whole_body"
+        return self._robot.PLANNING_SUBGROUPS[whole_body]["joints"]
 
     def _apply_subgroup_state(self, active_indices: list[int]) -> None:
         """Update cached Python-side subgroup metadata."""
-        from drone_planning.x500 import x500_robot_config
-
-        full_names = x500_robot_config.joint_names
+        full_names = self._full_names
         self._joint_names = [full_names[i] for i in active_indices]
         if active_indices == list(range(len(full_names))):
             self._subgroup_indices = None
@@ -136,12 +162,10 @@ class MotionPlanner:
         joint of the full body.  :attr:`bounds` gives the active joints'
         ranges as arrays.
         """
-        from drone_planning.x500 import x500_robot_config
-
         lower, upper = self._planner.joint_limits()
         return {
             name: (float(lo), float(hi))
-            for name, lo, hi in zip(x500_robot_config.joint_names, lower, upper)
+            for name, lo, hi in zip(self._full_names, lower, upper)
         }
 
     @property
@@ -187,11 +211,8 @@ class MotionPlanner:
                 finite with ``lower < upper``.  The ranges in effect are
                 then left unchanged.
         """
-        from drone_planning._ompl_vamp import OmplVampPlanner
-        from drone_planning.x500 import x500_robot_config
-
-        names = x500_robot_config.joint_names
-        lower, upper = OmplVampPlanner.default_joint_limits()
+        names = self._full_names
+        lower, upper = self._planner.default_joint_limits()
         for name, (lo, hi) in (limits or {}).items():
             if name not in names:
                 raise ValueError(
@@ -226,6 +247,50 @@ class MotionPlanner:
     def has_pointcloud(self) -> bool:
         """``True`` if a pointcloud is currently registered."""
         return self._planner.has_pointcloud()
+
+    # ── Distance-grid environment ─────────────────────────────────────
+
+    def set_distance_grid(
+        self,
+        distances: np.ndarray,
+        origin: np.ndarray | list[float],
+        spacing: float | np.ndarray | list[float],
+    ) -> None:
+        """Set the scene distance grid, replacing any previously-registered grid.
+
+        The grid is a signed distance field (for example an ESDF): the
+        distance from each point of a regular lattice to the nearest
+        obstacle, positive in free space.  A robot sphere is free where
+        the distance at its centre (trilinear interpolation between the
+        lattice points) is at least its radius and the sphere lies wholly
+        inside the lattice's box.  A float32 C-order array is read in
+        place, without a copy, and kept alive: its values must be finite
+        and change only between queries.  Any other array is first
+        converted to such a copy.
+
+        Args:
+            distances: ``(X, Y, Z)`` signed distances (m) at the lattice
+                points.
+            origin: World position of lattice point ``(0, 0, 0)``.
+            spacing: Lattice spacing (m), one value or one per axis.
+        """
+        self._planner.set_distance_grid(
+            np.ascontiguousarray(distances, dtype=np.float32),
+            np.asarray(origin, dtype=np.float32).tolist(),
+            np.broadcast_to(np.asarray(spacing, dtype=np.float32), 3).tolist(),
+        )
+
+    def remove_distance_grid(self) -> bool:
+        """Drop the distance grid.
+
+        Returns ``False`` if there was no grid to remove.
+        """
+        return self._planner.remove_distance_grid()
+
+    @property
+    def has_distance_grid(self) -> bool:
+        """``True`` if a distance grid is currently registered."""
+        return self._planner.has_distance_grid()
 
     # ── Point cloud filtering ────────────────────────────────────────
 
@@ -305,15 +370,17 @@ class MotionPlanner:
         The pointcloud and the joint limits are preserved.
 
         Args:
-            robot_name: Subgroup name from ``PLANNING_SUBGROUPS``, or
-                ``"x500"`` for the full 6-DOF body.
+            robot_name: Subgroup name from the robot's
+                ``PLANNING_SUBGROUPS``, or the robot name (``"x500"``,
+                ``"drone"``) for the full 6-DOF body.  It must belong to
+                the planner's robot.
             base_config: 6-DOF frozen config for inactive joints.
                 Defaults to the previously stored base config.
         """
+        active_indices = self._resolve_subgroup(robot_name)
         if base_config is not None:
             self._base_config = np.asarray(base_config, dtype=np.float64).copy()
         self._robot_name = robot_name
-        active_indices = self._resolve_subgroup(robot_name)
         self._planner.set_subgroup(active_indices, self._base_config.tolist())
         self._apply_subgroup_state(active_indices)
 
@@ -430,10 +497,11 @@ class MotionPlanner:
         (Duong et al., T-RO 2026): every tree edge is the closed-form
         minimum-effort cubic between two (position, velocity) states,
         validated with SIMD-batched collision checks and the velocity /
-        acceleration limits from :mod:`drone_planning.x500` — the norm of
-        the horizontal velocity and acceleration, the climb and descent
-        rates, the yaw rate and the gimbal rates.  The output is the
-        velocity setpoint stream a PX4 offboard controller tracks.
+        acceleration limits of the robot (:mod:`drone_planning.x500` or
+        :mod:`drone_planning.drone`) — the norm of the horizontal
+        velocity and acceleration, the climb and descent rates, the yaw
+        rate and the gimbal rates.  The output is the velocity setpoint
+        stream a PX4 offboard controller tracks.
 
         Args:
             start: Start configuration (active DOF).
@@ -486,25 +554,20 @@ class MotionPlanner:
         """Translate a :class:`KinodynamicConfig` + robot limits into the
         C++ ``KinodynamicSettings`` for this subgroup."""
         from drone_planning._ompl_vamp import KinodynamicSettings
-        from drone_planning.x500 import (
-            HORIZONTAL_MAX_ACCELERATION,
-            HORIZONTAL_MAX_SPEED,
-            JOINT_ACCELERATION_LIMITS,
-            JOINT_VELOCITY_LIMITS,
-        )
 
+        robot = self._robot
+        velocity, acceleration = (
+            robot.JOINT_VELOCITY_LIMITS,
+            robot.JOINT_ACCELERATION_LIMITS,
+        )
         vs, acs = config.velocity_scale, config.acceleration_scale
         s = KinodynamicSettings()
-        s.min_velocity = [JOINT_VELOCITY_LIMITS[j][0] * vs for j in self._joint_names]
-        s.max_velocity = [JOINT_VELOCITY_LIMITS[j][1] * vs for j in self._joint_names]
-        s.min_acceleration = [
-            JOINT_ACCELERATION_LIMITS[j][0] * acs for j in self._joint_names
-        ]
-        s.max_acceleration = [
-            JOINT_ACCELERATION_LIMITS[j][1] * acs for j in self._joint_names
-        ]
-        s.max_horizontal_speed = HORIZONTAL_MAX_SPEED * vs
-        s.max_horizontal_acceleration = HORIZONTAL_MAX_ACCELERATION * acs
+        s.min_velocity = [velocity[j][0] * vs for j in self._joint_names]
+        s.max_velocity = [velocity[j][1] * vs for j in self._joint_names]
+        s.min_acceleration = [acceleration[j][0] * acs for j in self._joint_names]
+        s.max_acceleration = [acceleration[j][1] * acs for j in self._joint_names]
+        s.max_horizontal_speed = robot.HORIZONTAL_MAX_SPEED * vs
+        s.max_horizontal_acceleration = robot.HORIZONTAL_MAX_ACCELERATION * acs
         s.rho = config.rho
         s.limit_aware_duration = config.limit_aware_duration
         s.max_extension_time = config.max_extension_time
@@ -616,9 +679,12 @@ class MotionPlanner:
 
 def available_robots() -> list[str]:
     """Return all available robot names for planning."""
-    from drone_planning.x500 import PLANNING_SUBGROUPS
+    from drone_planning import drone, x500
 
-    return ["x500"] + sorted(PLANNING_SUBGROUPS.keys())
+    names = []
+    for module in (x500, drone):
+        names += [module.ROBOT_NAME] + sorted(module.PLANNING_SUBGROUPS)
+    return names
 
 
 def create_planner(
@@ -630,14 +696,17 @@ def create_planner(
     """Create a motion planner for any robot or subgroup.
 
     Args:
-        robot_name: Robot or subgroup name. Use :func:`available_robots`
-            to list all names. The default ``"x500"`` is an alias for
-            the full whole-body planner (6 DOF: body + gimbal).
+        robot_name: Robot or subgroup name: ``"x500_base"``,
+            ``"x500_whole_body"``, ``"drone_base"``,
+            ``"drone_whole_body"``; ``"x500"`` (the default) and
+            ``"drone"`` are aliases for the whole bodies (6 DOF: body +
+            gimbal).  See :func:`available_robots`.
         config: Planner configuration (uses defaults if None).
         pointcloud: ``(N, 3)`` obstacle point cloud (optional).
         base_config: 6-DOF values to inject for joints not controlled
             by this planner (i.e. the frozen joints of a subgroup — the
-            gimbal for ``"x500_base"``).  Defaults to ``HOME_JOINTS``.
+            gimbal for ``"x500_base"`` and ``"drone_base"``).  Defaults
+            to the robot's ``HOME_JOINTS``.
 
     Returns:
         A :class:`MotionPlanner` instance.

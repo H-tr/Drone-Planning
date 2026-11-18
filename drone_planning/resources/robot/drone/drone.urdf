@@ -1,0 +1,84 @@
+<?xml version="1.0" ?>
+<robot name="drone">
+  <!-- PHANTOM's drone (H-tr/PHANTOM-Planner, phantom/robot/drone.urdf), with
+       the floating base written as the package's virtual base joints.  A
+       stabilized multirotor: the flight controller holds roll and pitch, so
+       the body is position and yaw; the camera gimbal pans and tilts.  The
+       collision footprint is one sphere of 0.30 m at the body centre.
+       Velocity and acceleration limits live in drone_planning/drone.py. -->
+  <link name="world" />
+  <joint name="base_x_joint" type="prismatic">
+    <parent link="world" />
+    <child link="base_x_link" />
+    <axis xyz="1 0 0" />
+    <limit lower="-10" upper="10" effort="0" velocity="0" />
+  </joint>
+  <link name="base_x_link" />
+  <joint name="base_y_joint" type="prismatic">
+    <parent link="base_x_link" />
+    <child link="base_y_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-10" upper="10" effort="0" velocity="0" />
+  </joint>
+  <link name="base_y_link" />
+  <joint name="base_z_joint" type="prismatic">
+    <parent link="base_y_link" />
+    <child link="base_z_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="10" effort="0" velocity="0" />
+  </joint>
+  <link name="base_z_link" />
+  <joint name="base_yaw_joint" type="revolute">
+    <parent link="base_z_link" />
+    <child link="base_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-3.141592653589793" upper="3.141592653589793" effort="0" velocity="0" />
+  </joint>
+  <link name="base_link">
+    <!-- The centred sphere is the collision footprint. -->
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.30" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <box size="0.46 0.46 0.12" />
+      </geometry>
+      <material name="body_grey">
+        <color rgba="0.35 0.35 0.4 1" />
+      </material>
+    </visual>
+  </link>
+  <!-- The gimbal hangs below the body centre; positive pan turns left. -->
+  <joint name="camera_pan" type="revolute">
+    <origin xyz="0 0 -0.06" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="gimbal" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.5707963267948966" upper="1.5707963267948966" effort="0" velocity="0" />
+  </joint>
+  <link name="gimbal" />
+  <!-- Positive tilt raises the optical axis (x of the camera link); the
+       lower limit looks straight down. -->
+  <joint name="camera_tilt" type="revolute">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="gimbal" />
+    <child link="camera" />
+    <axis xyz="0 -1 0" />
+    <limit lower="-1.5707963267948966" upper="0.5235987755982988" effort="0" velocity="0" />
+  </joint>
+  <link name="camera">
+    <visual>
+      <origin xyz="0.04 0 0" rpy="0 0 0" />
+      <geometry>
+        <box size="0.08 0.06 0.04" />
+      </geometry>
+      <material name="camera_black">
+        <color rgba="0.1 0.1 0.1 1" />
+      </material>
+    </visual>
+  </link>
+</robot>

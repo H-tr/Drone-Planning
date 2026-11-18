@@ -56,12 +56,13 @@ The collision checker is the only replaced component: it swaps OMPL's
 per-state user callback for a VAMP pipeline that batches many
 sphere/point checks into a single AVX2 kernel.
 
-The X500's flight controller holds roll and pitch, so the body is fully
-actuated in `(x, y, z, yaw)`: every subgroup is a plain bounded
-`RealVectorStateSpace`, edges are straight lines in joint space, and the
-yaw is a bounded joint in `[−π, π]` (a path from 3 rad to −3 rad turns
-the long way round, like every revolute joint). For timed motions within
-PX4's velocity and acceleration limits use
+On both robots (the X500 and PHANTOM's drone, see
+[Robot Models](../robot.md)) the flight controller holds roll and pitch,
+so the body is fully actuated in `(x, y, z, yaw)`: every subgroup is a
+plain bounded `RealVectorStateSpace`, edges are straight lines in joint
+space, and the yaw is a bounded joint in `[−π, π]` (a path from 3 rad to
+−3 rad turns the long way round, like every revolute joint). For timed
+motions within the robot's velocity and acceleration limits use
 [kinodynamic planning](kinodynamic.md).
 
 ## Supported planners
@@ -131,6 +132,9 @@ result = planner.plan(start, goal)
 print(result.success, result.planning_time_ns * 1e-6, "ms")
 ```
 
+For PHANTOM's drone, use `"drone_whole_body"` (or `"drone"`) and
+`"drone_base"` instead of the `x500_*` names.
+
 ## Configuring a plan
 
 Every plan is driven by a single
@@ -180,6 +184,43 @@ dense  = planner.interpolate_path(smooth, resolution=128.0)     # or count=200, 
 runs `StateSpace::interpolate` on the existing edges and does not perform
 collision checks itself.
 
+## Distance-grid environment
+
+A mapped scene can also come as a signed distance field (an ESDF)
+instead of a point cloud. The field gives, at each point of a regular
+3-D lattice, the distance (m) to the nearest obstacle: positive in free
+space, negative inside an obstacle. VAMP reads it by trilinear
+interpolation between the 8 lattice points around a robot sphere's
+centre. A sphere is free when this distance is at least its radius
+**and** the sphere lies wholly inside the lattice's box (from `origin`
+to the last lattice point). So the box is also the workspace: a robot
+that reaches out of the box collides.
+
+```python
+planner.set_distance_grid(
+    distances,              # (X, Y, Z) signed distances, m, positive in free space
+    origin=grid_origin,     # world position of lattice point (0, 0, 0)
+    spacing=0.05,           # m, one value or one per axis
+)
+planner.has_distance_grid  # True
+planner.remove_distance_grid()
+```
+
+Lattice point `(i, j, k)` sits at `origin + (i, j, k) * spacing`. The
+planner reads a float32 C-order array in place, without a copy, and keeps
+it alive, so its values must be finite and change only between queries.
+`MotionPlanner.set_distance_grid` converts any other array to such a copy
+first. The low-level `OmplVampPlanner.set_distance_grid(distances, origin,
+spacing)` takes only a float32 C-order `(X, Y, Z)` array and raises
+`TypeError` for anything else, because a converted array would be a copy;
+`origin` and `spacing` are 3 values each there. A lattice with fewer than
+2 points on an axis, or a spacing that is not positive, raises
+`ValueError` and keeps the grid in effect.
+
+A planner holds at most one grid and one point cloud; calling
+`set_distance_grid` again replaces the grid, and both apply when both are
+set. `clear_environment()` drops the grid too.
+
 ## Standalone collision checking
 
 ```python
@@ -215,15 +256,24 @@ that drive the planner directly:
 ```python
 from drone_planning._ompl_vamp import OmplVampPlanner
 
-planner = OmplVampPlanner()                       # full body, 6 DOF
-lower, upper = planner.default_joint_limits()     # full-body order
+planner = OmplVampPlanner("drone")                # full body, 6 DOF
+lower, upper = planner.default_joint_limits()     # this robot's, full-body order
 planner.set_joint_limits(lower, upper)            # e.g. the map extent
 planner.set_subgroup([0, 1, 2, 3], full_config)   # plan the body, gimbal frozen
-planner.add_pointcloud(points_float32_nx3, 0.0)   # replaces the previous cloud
+planner.set_distance_grid(esdf, origin, spacing)  # replaces the previous grid
 result = planner.plan(start, goal, planner_name="rrtc", time_limit=1.0,
                       simplify=True, interpolate=False)
 result.solved, result.path                         # bool, (N, 4) array
 ```
+
+The robot is `"x500"` or `"drone"`; `OmplVampPlanner()` without a name is
+the X500, as before. `OmplVampPlanner(robot, active_indices,
+frozen_config)` builds a subgroup planner in one step, and
+`OmplVampPlanner(active_indices, frozen_config)` still builds an X500
+subgroup planner. On a planner, `default_joint_limits()` gives the limits
+of its robot; on the class, `OmplVampPlanner.default_joint_limits()`
+gives the X500's and `OmplVampPlanner.default_joint_limits("drone")` the
+drone's.
 
 `plan_kinodynamic(start, start_velocity, goal, time_limit, settings)` is
 the kinodynamic entry point on the same object.

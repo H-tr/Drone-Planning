@@ -1,6 +1,20 @@
-# Robot Model
+# Robot Models
 
-The robot is the **Holybro X500 V2** quadrotor carrying a pan-tilt gimbal
+The package has two robots. Both have 6 DOF in the same order: the body
+`(x, y, z, yaw)`, then the camera pan and tilt.
+
+| Robot name | Model | Collision model | Limits |
+|---|---|---|---|
+| `x500` (default) | Holybro X500 V2 with PX4's gimbal | 126 spheres | PX4 v1.17 defaults |
+| `drone` | [PHANTOM's drone](#phantoms-drone) | 1 sphere, radius 0.30 m | PHANTOM's |
+
+Pick a robot by its name: `create_planner("drone")`,
+`create_planner("drone_base")` or `OmplVampPlanner("drone")`. Without a
+name, `OmplVampPlanner()` is the X500, as before.
+
+## Holybro X500 V2
+
+The X500 is the **Holybro X500 V2** quadrotor carrying a pan-tilt gimbal
 camera, as modelled by PX4 for Gazebo:
 [`PX4-gazebo-models`](https://github.com/PX4/PX4-gazebo-models)
 `x500_gimbal` = `x500` (which merges `x500_base`) + `gimbal`, pinned to
@@ -26,7 +40,7 @@ is held level. The base ranges are the default planning workspace; set
 your own with `PlannerConfig(joint_limits=...)` or
 `MotionPlanner.set_joint_limits`.
 
-## SDF → URDF conversion
+### SDF → URDF conversion
 
 `pixi run build-robot` (`scripts/build_robot.sh`) fetches the pinned PX4
 models into `build/` and runs `scripts/px4_sdf_to_urdf.py`, which writes
@@ -78,7 +92,7 @@ hang 0.23 m below the frame (Holybro: 215 mm landing gear). The PX4 model
 carries 11.5-inch propeller meshes; Holybro ships 10-inch (1045)
 propellers, so the model's rotor discs are 2 cm larger in radius.
 
-## Spherization and the VAMP model
+### Spherization and the VAMP model
 
 The pipeline is the template's, unchanged:
 
@@ -134,7 +148,7 @@ VAMP model at four configurations. Point obstacles are checked as points
     a brute-force sphere–point check and is an expected failure until
     upstream fixes this.
 
-## Limits
+### Limits
 
 `drone_planning/x500.py` takes every limit from PX4 v1.17.0 default
 parameters, which none of the X500 airframe files override:
@@ -154,3 +168,77 @@ the gimbal model's joint controllers (`cmd_max` = 0.3 N m) over the SDF
 inertia about each joint axis — effectively the gimbal is rate-limited.
 TOPP-RA takes symmetric per-joint bounds: pass the tighter side of each
 range (see [Time parameterization](planning/trajectory.md)).
+
+## PHANTOM's drone
+
+The drone of the PHANTOM planner
+([H-tr/PHANTOM-Planner](https://github.com/H-tr/PHANTOM-Planner),
+`phantom/robot/drone.urdf`). It is a simple model of a stabilized
+multirotor: the flight controller holds roll and pitch, so the body is
+position and yaw. A camera hangs 6 cm below the body centre on a pan-tilt
+gimbal. The configuration is 6-DOF, in PHANTOM's order:
+
+| Index | Joint | Group | Range | Notes |
+|------:|-------|-------|-------|-------|
+| 0 | `base_x_joint` | base | −10 … 10 m | virtual, world frame |
+| 1 | `base_y_joint` | base | −10 … 10 m | virtual, world frame |
+| 2 | `base_z_joint` | base | 0 … 10 m | virtual, z up |
+| 3 | `base_yaw_joint` | base | −π … π | virtual, counter-clockwise from +x |
+| 4 | `camera_pan` | gimbal | −90° … 90° | PHANTOM's limits |
+| 5 | `camera_tilt` | gimbal | −90° … 30° | PHANTOM's limits; −90° looks straight down |
+
+**Positive pan turns the camera left** (counter-clockwise seen from
+above; the X500's pan turns the other way), positive tilt raises it, and
+zero looks straight ahead. So the camera looks along azimuth
+`yaw + pan` at elevation `tilt`. The base ranges are the same as the
+X500's; set your own with `PlannerConfig(joint_limits=...)` or
+`set_joint_limits`.
+
+The files are in `drone_planning/resources/robot/drone/`:
+
+* `drone.urdf` — PHANTOM's URDF. PHANTOM's floating base joint becomes the
+  package's virtual base joints (`world → base_x_joint → base_y_joint →
+  base_z_joint → base_yaw_joint → base_link`), as for the X500. The body
+  link is `base_link`; the gimbal joints and links keep PHANTOM's names
+  (`camera_pan`, `gimbal`, `camera_tilt`, `camera`). The visual boxes are
+  kept. The camera's optical axis is the x axis of `camera`.
+* `drone_spherized.urdf` — the source of the VAMP model. **It is written
+  by hand, without foam:** the collision geometry of `drone.urdf` already
+  is one sphere (radius 0.30 m at the origin of `base_link`), so this file
+  keeps the joints and that sphere and drops the visual boxes.
+* `drone.srdf` — the planning groups. Only `base_link` has collision
+  geometry, so there is no pair of links to check against each other:
+  the drone cannot collide with itself.
+
+cricket (`pixi run generate-fk-drone`, which runs
+`scripts/generate_fk.sh drone`) turns `drone_spherized.urdf` and
+`drone.srdf` with `scripts/cricket_configs/drone.json` into
+`ext/ompl_vamp/include/vamp/robots/drone.hh` (`vamp::robots::Drone`). Its
+motion-check `resolution` is 64 (one check every 1.6 cm of translation),
+the value of Autolife-Planning's model. The gimbal angles do not enter
+the collision check: only the body position does.
+
+### Limits
+
+`drone_planning/drone.py` takes the limits from PHANTOM's URDF. They are
+simulated capabilities, not hardware ratings:
+
+| Quantity | Bound |
+|----------|-------|
+| speed along x, y and z, each | 1.5 m/s |
+| acceleration along x, y and z, each | 1.0 m/s² |
+| horizontal speed, norm of `(ẋ, ẏ)` | 1.5 m/s |
+| horizontal acceleration, norm of `(ẍ, ÿ)` | 1.0 m/s² |
+| yaw rate / acceleration | 1.5 rad/s / 3.0 rad/s² |
+| camera pan and tilt rate / acceleration | 1.0 rad/s / 2.0 rad/s² |
+
+PHANTOM gives one limit per axis. FLASK also limits the length (norm) of
+the horizontal velocity and acceleration, so those limits take the
+per-axis values. This is a little stricter than PHANTOM for diagonal
+flight: the horizontal speed is then at most 1.5 m/s in all.
+
+### Camera
+
+`drone_robot_config.camera` follows PHANTOM's sensor: a view cone of
+1.0821 rad (62°) that sees up to 5 m. PHANTOM gives no image size; the
+square 640 × 640 image is this package's choice.
