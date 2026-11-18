@@ -166,6 +166,45 @@ class OmplVampPlanner:
         """``True`` if a point cloud is registered."""
         ...
 
+    def set_distance_grid(
+        self,
+        distances: NDArray[np.float32],
+        origin: Sequence[float],
+        spacing: Sequence[float],
+    ) -> None:
+        """Set the scene distance grid, replacing any previous one.
+
+        A sphere is free where the trilinear distance at its centre is at
+        least its radius and it lies wholly inside the lattice's box.  The
+        planner reads the array in place, without a copy, and keeps it
+        alive: its values must be finite and change only between queries.
+        The planner holds at most one grid and one point cloud; both apply
+        when both are set.
+
+        Args:
+            distances: ``(X, Y, Z)`` float32, C-order signed distances (m,
+                positive in free space) at the lattice points.
+            origin: World position of lattice point ``(0, 0, 0)``.
+            spacing: Lattice spacing along x, y and z (m).
+
+        Raises:
+            TypeError: If ``distances`` is not a float32, C-order, 3-D
+                array (the planner does not convert it: a converted array
+                would be a copy).
+            ValueError: If the lattice has fewer than 2 points on an axis,
+                or the origin or spacing is not finite, or the spacing is
+                not positive.  The grid in effect is then kept.
+        """
+        ...
+
+    def remove_distance_grid(self) -> bool:
+        """Drop the distance grid.  Returns ``False`` if there was none."""
+        ...
+
+    def has_distance_grid(self) -> bool:
+        """``True`` if a distance grid is registered."""
+        ...
+
     def add_sphere(self, center: Sequence[float], radius: float) -> None:
         """Add a single sphere obstacle (centre + radius) to the environment."""
         ...

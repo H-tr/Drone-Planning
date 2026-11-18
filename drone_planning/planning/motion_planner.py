@@ -227,6 +227,50 @@ class MotionPlanner:
         """``True`` if a pointcloud is currently registered."""
         return self._planner.has_pointcloud()
 
+    # ── Distance-grid environment ─────────────────────────────────────
+
+    def set_distance_grid(
+        self,
+        distances: np.ndarray,
+        origin: np.ndarray | list[float],
+        spacing: float | np.ndarray | list[float],
+    ) -> None:
+        """Set the scene distance grid, replacing any previously-registered grid.
+
+        The grid is a signed distance field (for example an ESDF): the
+        distance from each point of a regular lattice to the nearest
+        obstacle, positive in free space.  A robot sphere is free where
+        the distance at its centre (trilinear interpolation between the
+        lattice points) is at least its radius and the sphere lies wholly
+        inside the lattice's box.  A float32 C-order array is read in
+        place, without a copy, and kept alive: its values must be finite
+        and change only between queries.  Any other array is first
+        converted to such a copy.
+
+        Args:
+            distances: ``(X, Y, Z)`` signed distances (m) at the lattice
+                points.
+            origin: World position of lattice point ``(0, 0, 0)``.
+            spacing: Lattice spacing (m), one value or one per axis.
+        """
+        self._planner.set_distance_grid(
+            np.ascontiguousarray(distances, dtype=np.float32),
+            np.asarray(origin, dtype=np.float32).tolist(),
+            np.broadcast_to(np.asarray(spacing, dtype=np.float32), 3).tolist(),
+        )
+
+    def remove_distance_grid(self) -> bool:
+        """Drop the distance grid.
+
+        Returns ``False`` if there was no grid to remove.
+        """
+        return self._planner.remove_distance_grid()
+
+    @property
+    def has_distance_grid(self) -> bool:
+        """``True`` if a distance grid is currently registered."""
+        return self._planner.has_distance_grid()
+
     # ── Point cloud filtering ────────────────────────────────────────
 
     def filter_pointcloud(

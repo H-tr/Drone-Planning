@@ -11,6 +11,7 @@
 
 #include <nanobind/eigen/dense.h>
 #include <nanobind/nanobind.h>
+#include <nanobind/ndarray.h>
 #include <nanobind/stl/array.h>
 #include <nanobind/stl/pair.h>
 #include <nanobind/stl/string.h>
@@ -18,6 +19,7 @@
 #include <nanobind/stl/vector.h>
 
 #include <Eigen/Core>
+#include <memory>
 
 #include "planner.hpp"
 
@@ -29,6 +31,20 @@ using drone_planning::PlanResult;
 using drone_planning::flat::FlatTrajectory;
 
 namespace {
+
+/// A distance field from NumPy: float32, (X, Y, Z), C order.
+using Field =
+    nb::ndarray<const float, nb::ndim<3>, nb::c_contig, nb::device::cpu>;
+
+/// The field's values, read in place: the pointer holds a reference to the
+/// array and drops it under the GIL.
+auto in_place(const Field& field) -> std::shared_ptr<const float> {
+  auto* held = new Field(field);
+  return std::shared_ptr<const float>(held->data(), [held](const float*) {
+    nb::gil_scoped_acquire gil;
+    delete held;
+  });
+}
 
 auto to_matrix(const FlatTrajectory::Matrix& rows, int ndof)
     -> Eigen::MatrixXd {
@@ -171,6 +187,23 @@ NB_MODULE(_ompl_vamp, m) {
            nb::arg("points"), nb::arg("point_radius"))
       .def("remove_pointcloud", &OmplVampPlanner::remove_pointcloud)
       .def("has_pointcloud", &OmplVampPlanner::has_pointcloud)
+      .def(
+          "set_distance_grid",
+          [](OmplVampPlanner& planner, const Field& distances,
+             const std::array<float, 3>& origin,
+             const std::array<float, 3>& spacing) {
+            planner.set_distance_grid(
+                in_place(distances),
+                {distances.shape(0), distances.shape(1), distances.shape(2)},
+                origin, spacing);
+          },
+          // No implicit conversion: a converted array would be a copy.
+          nb::arg("distances").noconvert(), nb::arg("origin"),
+          nb::arg("spacing"),
+          "Set the scene distance grid (float32 (X, Y, Z), C order, read in "
+          "place), replacing any previous one.")
+      .def("remove_distance_grid", &OmplVampPlanner::remove_distance_grid)
+      .def("has_distance_grid", &OmplVampPlanner::has_distance_grid)
       .def("add_sphere", &OmplVampPlanner::add_sphere, nb::arg("center"),
            nb::arg("radius"))
       .def("clear_environment", &OmplVampPlanner::clear_environment)

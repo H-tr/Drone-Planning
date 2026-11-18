@@ -13,9 +13,10 @@
  * the flight controller holds roll and pitch), so every subgroup plans in
  * a ``RealVectorStateSpace`` with OMPL's geometric planners, and
  * ``plan_kinodynamic`` runs FLASK (plan_kinodynamic.hpp) over the same
- * joints.  ``add_pointcloud`` / ``add_sphere`` / ``clear_environment``
- * build the obstacle environment and ``set_joint_limits(...)`` overrides
- * the joint ranges the planners sample.  Waypoints and points cross the
+ * joints.  ``add_pointcloud`` / ``set_distance_grid`` / ``add_sphere`` /
+ * ``clear_environment`` build the obstacle environment and
+ * ``set_joint_limits(...)`` overrides the joint ranges the planners
+ * sample.  Waypoints and points cross the
  * boundary as row-major Eigen matrices (numpy arrays in Python).
  */
 
@@ -138,6 +139,41 @@ class OmplVampPlanner {
   }
 
   bool has_pointcloud() const { return !float_env_.pointclouds.empty(); }
+
+  /// Set the scene distance grid: signed distances (m, positive in free
+  /// space) at ``size`` lattice points from ``origin`` with ``spacing``,
+  /// row-major with the z index contiguous.  ``distances`` points at the
+  /// values, which the planner reads in place, without a copy: they must
+  /// be finite and change only between queries; the shared pointer keeps
+  /// them alive.  A sphere is free where the trilinear distance at its
+  /// centre is at least its radius and it lies wholly inside the
+  /// lattice's box.  The planner holds at most one grid; calling this
+  /// replaces it.  Throws ``std::invalid_argument`` (and keeps the grid
+  /// it had) unless every axis has at least 2 lattice points and the
+  /// origin and spacing are finite with a positive spacing.
+  void set_distance_grid(std::shared_ptr<const float> distances,
+                         const std::array<std::size_t, 3>& size,
+                         const std::array<float, 3>& origin,
+                         const std::array<float, 3>& spacing) {
+    // One field; its workspace defaults to the lattice's box.  The grid
+    // checks its inputs before the old grid is dropped.
+    vamp::collision::DistanceGrid<float> grid(
+        origin[0], origin[1], origin[2], spacing[0], spacing[1], spacing[2],
+        size[0], size[1], size[2], {std::move(distances)});
+    float_env_.distance_grids.clear();
+    float_env_.distance_grids.emplace_back(std::move(grid));
+    sync_env();
+  }
+
+  /// Drop the distance grid.  Returns ``false`` if there was none.
+  bool remove_distance_grid() {
+    if (float_env_.distance_grids.empty()) return false;
+    float_env_.distance_grids.clear();
+    sync_env();
+    return true;
+  }
+
+  bool has_distance_grid() const { return !float_env_.distance_grids.empty(); }
 
   void add_sphere(const std::array<float, 3>& center, float radius) {
     float_env_.spheres.emplace_back(vamp::collision::Sphere<float>{
