@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 # Generate FK/collision-checking C++ code for vamp using cricket.
-# Generates the X500 VAMP robot model (6 DOF: x, y, z, yaw, gimbal pan,
-# gimbal tilt) from x500_spherized.urdf + x500.srdf and installs it in
-# ext/ompl_vamp/include/vamp/robots/x500.hh (NOT inside the vamp submodule).
 #
-# The cricket config checks motions every 1/64 of configuration distance
-# ("resolution": 64): 1.6 cm of translation, below the 1.8 cm diameter of
-# the smallest sphere, so a straight edge cannot step over a point obstacle.
+# Usage: generate_fk.sh [ROBOT]    ROBOT is x500 (the default) or drone.
+#
+# Generates the VAMP model of ROBOT (6 DOF: x, y, z, yaw, gimbal pan,
+# gimbal tilt) from <robot>_spherized.urdf + <robot>.srdf in
+# drone_planning/resources/robot/<robot>/ and installs it in
+# ext/ompl_vamp/include/vamp/robots/<robot>.hh (NOT inside the vamp
+# submodule).  Only the named robot's header is written.
+#
+# The cricket configs (scripts/cricket_configs/<robot>.json) check motions
+# every 1/64 of configuration distance ("resolution": 64): 1.6 cm of
+# translation, below the 1.8 cm diameter of the X500's smallest sphere, so
+# a straight edge cannot step over a point obstacle.
 #
 # WARNING: cricket's CppAD codegen is not bit-stable across runs — the
 # emitted formulas are mathematically equivalent but use different
@@ -14,30 +20,37 @@
 # rounding.  Regenerate only when the URDF or SRDF actually changes.
 set -euo pipefail
 
+ROBOT="${1:-x500}"
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(dirname "$SCRIPT_DIR")"
 
 CRICKET="$ROOT/third_party/cricket"
-RESOURCES="$ROOT/drone_planning/resources/robot/x500"
+RESOURCES="$ROOT/drone_planning/resources/robot/$ROBOT"
 CRICKET_CONFIGS="$SCRIPT_DIR/cricket_configs"
 FK_DEST="$ROOT/ext/ompl_vamp/include/vamp/robots"
+
+if [[ ! -f "$CRICKET_CONFIGS/$ROBOT.json" ]]; then
+    echo "Unknown robot '$ROBOT': no $CRICKET_CONFIGS/$ROBOT.json" >&2
+    exit 1
+fi
 
 # 1. Distribute robot descriptions and cricket configs into the cricket
 #    submodule (kept out of submodule git tracking on purpose — the
 #    canonical copies live in this repo).
 echo "[1/3] Distributing robot descriptions..."
-CRICKET_RES="$CRICKET/resources/x500"
+CRICKET_RES="$CRICKET/resources/$ROBOT"
 mkdir -p "$CRICKET_RES"
-cp "$RESOURCES/x500_spherized.urdf" "$CRICKET_RES/"
-cp "$RESOURCES/x500.srdf"           "$CRICKET_RES/"
-cp "$CRICKET_CONFIGS/"*.json        "$CRICKET/resources/"
+cp "$RESOURCES/${ROBOT}_spherized.urdf" "$CRICKET_RES/"
+cp "$RESOURCES/$ROBOT.srdf"             "$CRICKET_RES/"
+cp "$CRICKET_CONFIGS/"*.json            "$CRICKET/resources/"
 echo "  copied to $CRICKET_RES and $CRICKET/resources/"
 
 # 2. Run cricket FK code generation
 echo "[2/3] Generating FK code..."
 mkdir -p "$FK_DEST"
-(cd "$CRICKET" && "$CRICKET/build/fkcc_gen" "resources/x500.json")
-cp "$CRICKET/x500_fk.hh" "$FK_DEST/x500.hh"
-echo "    installed $FK_DEST/x500.hh"
+(cd "$CRICKET" && "$CRICKET/build/fkcc_gen" "resources/$ROBOT.json")
+cp "$CRICKET/${ROBOT}_fk.hh" "$FK_DEST/$ROBOT.hh"
+echo "    installed $FK_DEST/$ROBOT.hh"
 
 echo "[3/3] Done! Rebuild the package to use the new FK code."

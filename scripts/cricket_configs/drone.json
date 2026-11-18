@@ -1,0 +1,10 @@
+{
+    "name": "Drone",
+    "urdf": "drone/drone_spherized.urdf",
+    "srdf": "drone/drone.srdf",
+    "end_effector": "camera",
+    "resolution": 64,
+    "template": "templates/fk_template.hh",
+    "subtemplates": [{"name": "ccfk", "template": "templates/ccfk_template.hh"}],
+    "output": "drone_fk.hh"
+}

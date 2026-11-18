@@ -1,0 +1,23 @@
+<?xml version="1.0" ?>
+<!--Planning groups of PHANTOM's drone (drone_spherized.urdf).
+
+    Only base_link has collision geometry (one sphere); the gimbal links
+    have none.  So there is no pair of links to check against each other,
+    and the drone cannot collide with itself.
+-->
+<robot name="drone">
+    <group name="drone_base">
+        <joint name="base_x_joint" />
+        <joint name="base_y_joint" />
+        <joint name="base_z_joint" />
+        <joint name="base_yaw_joint" />
+    </group>
+    <group name="drone_whole_body">
+        <joint name="base_x_joint" />
+        <joint name="base_y_joint" />
+        <joint name="base_z_joint" />
+        <joint name="base_yaw_joint" />
+        <joint name="camera_pan" />
+        <joint name="camera_tilt" />
+    </group>
+</robot>
