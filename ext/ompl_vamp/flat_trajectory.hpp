@@ -3,7 +3,8 @@
  *
  * Building blocks for the FLASK kinodynamic planner (Duong et al.,
  * "Ultrafast Sampling-based Kinodynamic Planning via Differential
- * Flatness", T-RO 2026), specialised to the X500:
+ * Flatness", T-RO 2026), specialised to the drones of this package (the
+ * X500 and PHANTOM's drone, which share the joint layout):
  *
  *   * Flat output ``y``: the quadrotor's flat outputs are its position
  *     (x, y, z) and yaw; with roll and pitch held by the flight controller

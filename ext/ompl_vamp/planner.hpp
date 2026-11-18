@@ -1,23 +1,23 @@
 /**
  * Main planner class — OMPL frontend with VAMP collision backend.
  *
- * Two construction modes:
+ * ``OmplVampPlanner`` is the interface the Python extension exposes;
+ * ``make_planner(robot)`` builds the ``Planner<Spec>`` of the named robot
+ * ("x500" or "drone", see validity.hpp).  Both robots have 6 DOF (x, y,
+ * z, yaw, gimbal pan, gimbal tilt).  A planner starts on the full body;
+ * ``set_subgroup(active_indices, frozen_config)`` plans over the listed
+ * joint indices, with the rest of the body pinned to ``frozen_config``
+ * for every collision check.
  *
- *  - ``OmplVampPlanner()`` — full body, 6 DOF (x, y, z, yaw, gimbal pan,
- *    gimbal tilt).
- *  - ``OmplVampPlanner(active_indices, frozen_config)`` — subgroup
- *    planning over the listed joint indices, with the rest of the body
- *    pinned to ``frozen_config`` for every collision check.
- *
- * Every X500 joint is a plain bounded real (the base is fully actuated:
- * the flight controller holds roll and pitch), so every subgroup plans in
- * a ``RealVectorStateSpace`` with OMPL's geometric planners, and
+ * Every joint is a plain bounded real (the base is fully actuated: the
+ * flight controller holds roll and pitch), so every subgroup plans in a
+ * ``RealVectorStateSpace`` with OMPL's geometric planners, and
  * ``plan_kinodynamic`` runs FLASK (plan_kinodynamic.hpp) over the same
  * joints.  ``add_pointcloud`` / ``set_distance_grid`` / ``add_sphere`` /
  * ``clear_environment`` build the obstacle environment and
  * ``set_joint_limits(...)`` overrides the joint ranges the planners
- * sample.  Waypoints and points cross the
- * boundary as row-major Eigen matrices (numpy arrays in Python).
+ * sample.  Waypoints and points cross the boundary as row-major Eigen
+ * matrices (numpy arrays in Python).
  */
 
 #pragma once
@@ -106,39 +106,16 @@ struct PlanResult {
 
 class OmplVampPlanner {
  public:
-  /// Full-body constructor (6 DOF).
-  OmplVampPlanner()
-      : OmplVampPlanner(all_joints(),
-                        std::vector<double>(Robot::dimension, 0.0)) {}
-
-  /// Subgroup constructor (reduced DOF).
-  OmplVampPlanner(std::vector<int> active_indices,
-                  std::vector<double> frozen_config)
-      : joint_limits_(default_joint_limits()) {
-    set_subgroup(std::move(active_indices), std::move(frozen_config));
-  }
+  virtual ~OmplVampPlanner() = default;
 
   /// Set the scene pointcloud.  The planner holds at most one cloud;
   /// calling this replaces any previously-registered cloud.
-  void add_pointcloud(const Eigen::Ref<const Points>& points,
-                      float point_radius) {
-    float_env_.pointclouds.clear();
-    float_env_.pointclouds.emplace_back(to_vamp_points_(points),
-                                        Robot::min_radius, Robot::max_radius,
-                                        point_radius);
-    sync_env();
-  }
-
+  virtual void add_pointcloud(const Eigen::Ref<const Points>& points,
+                              float point_radius) = 0;
   /// Drop the currently-registered pointcloud.  Returns ``false`` if
   /// there was no cloud to remove.
-  bool remove_pointcloud() {
-    if (float_env_.pointclouds.empty()) return false;
-    float_env_.pointclouds.clear();
-    sync_env();
-    return true;
-  }
-
-  bool has_pointcloud() const { return !float_env_.pointclouds.empty(); }
+  virtual auto remove_pointcloud() -> bool = 0;
+  virtual auto has_pointcloud() const -> bool = 0;
 
   /// Set the scene distance grid: signed distances (m, positive in free
   /// space) at ``size`` lattice points from ``origin`` with ``spacing``,
@@ -151,10 +128,97 @@ class OmplVampPlanner {
   /// replaces it.  Throws ``std::invalid_argument`` (and keeps the grid
   /// it had) unless every axis has at least 2 lattice points and the
   /// origin and spacing are finite with a positive spacing.
+  virtual void set_distance_grid(std::shared_ptr<const float> distances,
+                                 const std::array<std::size_t, 3>& size,
+                                 const std::array<float, 3>& origin,
+                                 const std::array<float, 3>& spacing) = 0;
+  /// Drop the distance grid.  Returns ``false`` if there was none.
+  virtual auto remove_distance_grid() -> bool = 0;
+  virtual auto has_distance_grid() const -> bool = 0;
+
+  virtual void add_sphere(const std::array<float, 3>& center, float radius) = 0;
+  virtual void clear_environment() = 0;
+
+  virtual auto plan(const Eigen::VectorXd& start, const Eigen::VectorXd& goal,
+                    const std::string& planner_name, double time_limit,
+                    bool simplify, bool interpolate, double resolution)
+      -> PlanResult = 0;
+  virtual auto plan_kinodynamic(const Eigen::VectorXd& start,
+                                const Eigen::VectorXd& start_velocity,
+                                const Eigen::VectorXd& goal, double time_limit,
+                                const KinodynamicSettings& settings)
+      -> KinodynamicResult = 0;
+  virtual auto simplify_path(const Waypoints& path, double time_limit)
+      -> Waypoints = 0;
+  virtual auto interpolate_path(const Waypoints& path, int count,
+                                double resolution) -> Waypoints = 0;
+
+  virtual auto validate(const Eigen::VectorXd& config) -> bool = 0;
+  virtual auto validate_batch(const Eigen::Ref<const Waypoints>& configs)
+      -> Eigen::Matrix<bool, Eigen::Dynamic, 1> = 0;
+
+  virtual auto filter_pointcloud(const Eigen::Ref<const Points>& points,
+                                 float min_dist, float max_range,
+                                 const std::array<float, 3>& origin,
+                                 const std::array<float, 3>& workspace_min,
+                                 const std::array<float, 3>& workspace_max,
+                                 bool cull) -> Points = 0;
+  virtual auto filter_self_from_pointcloud(
+      const Eigen::Ref<const Points>& points, float point_radius,
+      const Eigen::VectorXd& config) -> Points = 0;
+
+  virtual auto dimension() const -> int = 0;
+  virtual auto lower_bounds() const -> Eigen::VectorXd = 0;
+  virtual auto upper_bounds() const -> Eigen::VectorXd = 0;
+  /// The limits compiled into the robot model, in full-body order.
+  virtual auto default_joint_limits() const -> JointLimits = 0;
+  /// The limits in effect, in full-body order.
+  virtual auto joint_limits() const -> JointLimits = 0;
+  virtual void set_joint_limits(const Eigen::VectorXd& lower,
+                                const Eigen::VectorXd& upper) = 0;
+  virtual void set_subgroup(std::vector<int> active_indices,
+                            std::vector<double> frozen_config) = 0;
+};
+
+template <typename Spec>
+class Planner final : public OmplVampPlanner {
+ public:
+  using Robot = typename Spec::Robot;
+
+  /// Full-body constructor (6 DOF).
+  Planner()
+      : Planner(all_joints(), std::vector<double>(Robot::dimension, 0.0)) {}
+
+  /// Subgroup constructor (reduced DOF).
+  Planner(std::vector<int> active_indices, std::vector<double> frozen_config)
+      : joint_limits_(model_joint_limits()) {
+    set_subgroup(std::move(active_indices), std::move(frozen_config));
+  }
+
+  void add_pointcloud(const Eigen::Ref<const Points>& points,
+                      float point_radius) override {
+    float_env_.pointclouds.clear();
+    float_env_.pointclouds.emplace_back(to_vamp_points_(points),
+                                        Robot::min_radius, Robot::max_radius,
+                                        point_radius);
+    sync_env();
+  }
+
+  auto remove_pointcloud() -> bool override {
+    if (float_env_.pointclouds.empty()) return false;
+    float_env_.pointclouds.clear();
+    sync_env();
+    return true;
+  }
+
+  auto has_pointcloud() const -> bool override {
+    return !float_env_.pointclouds.empty();
+  }
+
   void set_distance_grid(std::shared_ptr<const float> distances,
                          const std::array<std::size_t, 3>& size,
                          const std::array<float, 3>& origin,
-                         const std::array<float, 3>& spacing) {
+                         const std::array<float, 3>& spacing) override {
     // One field; its workspace defaults to the lattice's box.  The grid
     // checks its inputs before the old grid is dropped.
     vamp::collision::DistanceGrid<float> grid(
@@ -165,31 +229,32 @@ class OmplVampPlanner {
     sync_env();
   }
 
-  /// Drop the distance grid.  Returns ``false`` if there was none.
-  bool remove_distance_grid() {
+  auto remove_distance_grid() -> bool override {
     if (float_env_.distance_grids.empty()) return false;
     float_env_.distance_grids.clear();
     sync_env();
     return true;
   }
 
-  bool has_distance_grid() const { return !float_env_.distance_grids.empty(); }
+  auto has_distance_grid() const -> bool override {
+    return !float_env_.distance_grids.empty();
+  }
 
-  void add_sphere(const std::array<float, 3>& center, float radius) {
+  void add_sphere(const std::array<float, 3>& center, float radius) override {
     float_env_.spheres.emplace_back(vamp::collision::Sphere<float>{
         center[0], center[1], center[2], radius});
     float_env_.sort();
     sync_env();
   }
 
-  void clear_environment() {
+  void clear_environment() override {
     float_env_ = FloatEnv{};
     env_ = VampEnv{};
   }
 
   auto plan(const Eigen::VectorXd& start, const Eigen::VectorXd& goal,
             const std::string& planner_name, double time_limit, bool simplify,
-            bool interpolate, double resolution) -> PlanResult {
+            bool interpolate, double resolution) -> PlanResult override {
     check_dim_(start.size(), "plan: start");
     check_dim_(goal.size(), "plan: goal");
     auto si = make_space_information_();
@@ -237,7 +302,7 @@ class OmplVampPlanner {
                         const Eigen::VectorXd& start_velocity,
                         const Eigen::VectorXd& goal, double time_limit,
                         const KinodynamicSettings& settings)
-      -> KinodynamicResult {
+      -> KinodynamicResult override {
     check_dim_(start.size(), "plan_kinodynamic: start");
     check_dim_(goal.size(), "plan_kinodynamic: goal");
     if (start_velocity.size() != 0)
@@ -248,9 +313,10 @@ class OmplVampPlanner {
       check_dim_(static_cast<Eigen::Index>(limits->size()),
                  "plan_kinodynamic: settings limits");
     const auto lower = lower_bounds(), upper = upper_bounds();
-    FlaskPlanner flask(env_, active_indices_, frozen_config_,
-                       {lower.data(), lower.data() + lower.size()},
-                       {upper.data(), upper.data() + upper.size()}, settings);
+    FlaskPlanner<Spec> flask(env_, active_indices_, frozen_config_,
+                             {lower.data(), lower.data() + lower.size()},
+                             {upper.data(), upper.data() + upper.size()},
+                             settings);
     return flask.plan(
         {start.data(), start.data() + start.size()},
         {start_velocity.data(), start_velocity.data() + start_velocity.size()},
@@ -261,7 +327,8 @@ class OmplVampPlanner {
   // ``SimpleSetup::simplifySolution`` runs (reduceVertices,
   // collapseCloseVertices, shortcutPath, B-spline smoothing) against the
   // current collision environment, but detached from ``plan(...)``.
-  auto simplify_path(const Waypoints& path, double time_limit) -> Waypoints {
+  auto simplify_path(const Waypoints& path, double time_limit)
+      -> Waypoints override {
     if (path.rows() < 2) return path;
     auto si = make_space_information_();
     og::PathGeometric geo = waypoints_to_path_(path, si);
@@ -281,7 +348,7 @@ class OmplVampPlanner {
   // No collision check — densification only calls
   // ``StateSpace::interpolate`` on the existing edges.
   auto interpolate_path(const Waypoints& path, int count, double resolution)
-      -> Waypoints {
+      -> Waypoints override {
     if (count > 0 && resolution > 0.0) {
       throw std::invalid_argument(
           "interpolate_path: pass at most one of count (>0) or resolution "
@@ -294,7 +361,7 @@ class OmplVampPlanner {
     return path_to_waypoints_(geo);
   }
 
-  auto validate(const Eigen::VectorXd& config) -> bool {
+  auto validate(const Eigen::VectorXd& config) -> bool override {
     check_dim_(config.size(), "validate: config");
     auto q = build_full_config_(config);
     return vamp::planning::validate_motion<Robot, kRake, 1>(q, q, env_);
@@ -307,7 +374,7 @@ class OmplVampPlanner {
   // If a packed block fails, its lanes are re-checked one by one so the
   // caller still gets one bool per input config.
   auto validate_batch(const Eigen::Ref<const Waypoints>& configs)
-      -> Eigen::Matrix<bool, Eigen::Dynamic, 1> {
+      -> Eigen::Matrix<bool, Eigen::Dynamic, 1> override {
     const auto n = static_cast<std::size_t>(configs.rows());
     Eigen::Matrix<bool, Eigen::Dynamic, 1> result =
         Eigen::Matrix<bool, Eigen::Dynamic, 1>::Zero(configs.rows());
@@ -364,7 +431,7 @@ class OmplVampPlanner {
                          float max_range, const std::array<float, 3>& origin,
                          const std::array<float, 3>& workspace_min,
                          const std::array<float, 3>& workspace_max, bool cull)
-      -> Points {
+      -> Points override {
     vamp::collision::Point o{origin[0], origin[1], origin[2]};
     vamp::collision::Point ws_min{workspace_min[0], workspace_min[1],
                                   workspace_min[2]};
@@ -384,7 +451,8 @@ class OmplVampPlanner {
   /// Remove points that collide with the robot body or the environment.
   auto filter_self_from_pointcloud(const Eigen::Ref<const Points>& points,
                                    float point_radius,
-                                   const Eigen::VectorXd& config) -> Points {
+                                   const Eigen::VectorXd& config)
+      -> Points override {
     check_dim_(config.size(), "filter_self_from_pointcloud: config");
 
     auto full_arr = build_full_config_(config).to_array();
@@ -417,14 +485,14 @@ class OmplVampPlanner {
     return out;
   }
 
-  auto dimension() const -> int { return active_dim_; }
+  auto dimension() const -> int override { return active_dim_; }
 
-  auto lower_bounds() const -> Eigen::VectorXd {
+  auto lower_bounds() const -> Eigen::VectorXd override {
     const auto& low = space_->as<ob::RealVectorStateSpace>()->getBounds().low;
     return Eigen::Map<const Eigen::VectorXd>(low.data(), active_dim_);
   }
 
-  auto upper_bounds() const -> Eigen::VectorXd {
+  auto upper_bounds() const -> Eigen::VectorXd override {
     const auto& high = space_->as<ob::RealVectorStateSpace>()->getBounds().high;
     return Eigen::Map<const Eigen::VectorXd>(high.data(), active_dim_);
   }
@@ -438,12 +506,12 @@ class OmplVampPlanner {
   // them.
 
   /// The limits compiled into the robot model, in full-body order.
-  static auto default_joint_limits() -> JointLimits {
+  static auto model_joint_limits() -> JointLimits {
     alignas(Robot::Configuration::S::Alignment)
         std::array<float, Robot::Configuration::num_scalars_rounded>
             zeros{}, ones{};
     ones.fill(1.0f);
-    Robot::Configuration lo(zeros.data()), hi(ones.data());
+    typename Robot::Configuration lo(zeros.data()), hi(ones.data());
     Robot::scale_configuration(lo);
     Robot::scale_configuration(hi);
     const auto lo_arr = lo.to_array();
@@ -458,13 +526,16 @@ class OmplVampPlanner {
     return limits;
   }
 
-  /// The limits in effect, in full-body order.
-  auto joint_limits() const -> JointLimits { return joint_limits_; }
+  auto default_joint_limits() const -> JointLimits override {
+    return model_joint_limits();
+  }
+
+  auto joint_limits() const -> JointLimits override { return joint_limits_; }
 
   /// Replace the limits of every joint (full-body order).  Each joint
   /// needs finite bounds with lower < upper; on error nothing changes.
   void set_joint_limits(const Eigen::VectorXd& lower,
-                        const Eigen::VectorXd& upper) {
+                        const Eigen::VectorXd& upper) override {
     if (lower.size() != Robot::dimension || upper.size() != Robot::dimension)
       throw std::invalid_argument("set_joint_limits: lower and upper need " +
                                   std::to_string(Robot::dimension) +
@@ -489,7 +560,7 @@ class OmplVampPlanner {
   /// @param frozen_config   Full-body stance for joints outside
   ///     ``active_indices``.
   void set_subgroup(std::vector<int> active_indices,
-                    std::vector<double> frozen_config) {
+                    std::vector<double> frozen_config) override {
     for (int index : active_indices)
       if (index < 0 || index >= static_cast<int>(Robot::dimension))
         throw std::invalid_argument("set_subgroup: joint index " +
@@ -541,15 +612,15 @@ class OmplVampPlanner {
 
   // Expand an active-DOF config into a full-body VAMP Configuration,
   // injecting the frozen pose for joints outside ``active_indices_``.
-  auto build_full_config_(const Eigen::VectorXd& config) const
-      -> Robot::Configuration {
+  auto build_full_config_(const Eigen::VectorXd& config) const ->
+      typename Robot::Configuration {
     alignas(Robot::Configuration::S::Alignment)
         std::array<float, Robot::Configuration::num_scalars_rounded>
             buf{};
     std::copy(frozen_config_.begin(), frozen_config_.end(), buf.begin());
     for (std::size_t i = 0; i < active_indices_.size(); ++i)
       buf[active_indices_[i]] = static_cast<float>(config[i]);
-    return Robot::Configuration(buf.data());
+    return typename Robot::Configuration(buf.data());
   }
 
   // Rebuild the active state space with the stored joint limits of the
@@ -569,9 +640,9 @@ class OmplVampPlanner {
   // ``plan`` and the standalone simplify / interpolate.
   auto make_space_information_() -> ob::SpaceInformationPtr {
     auto si = std::make_shared<ob::SpaceInformation>(space_);
-    si->setStateValidityChecker(std::make_shared<SubgroupValidityChecker>(
+    si->setStateValidityChecker(std::make_shared<SubgroupValidityChecker<Spec>>(
         si, env_, active_indices_, frozen_config_));
-    si->setMotionValidator(std::make_shared<SubgroupMotionValidator>(
+    si->setMotionValidator(std::make_shared<SubgroupMotionValidator<Spec>>(
         si, env_, active_indices_, frozen_config_));
     si->setup();
     return si;
@@ -674,5 +745,14 @@ class OmplVampPlanner {
     throw std::invalid_argument("Unknown planner: " + name);
   }
 };
+
+/// The full-body planner of ``robot``: "x500" or "drone".
+inline auto make_planner(const std::string& robot)
+    -> std::unique_ptr<OmplVampPlanner> {
+  if (robot == X500Spec::name) return std::make_unique<Planner<X500Spec>>();
+  if (robot == DroneSpec::name) return std::make_unique<Planner<DroneSpec>>();
+  throw std::invalid_argument("Unknown robot '" + robot +
+                              "': use 'x500' or 'drone'.");
+}
 
 }  // namespace drone_planning

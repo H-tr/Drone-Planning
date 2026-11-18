@@ -1,9 +1,9 @@
 """The Holybro X500 V2 robot's bundled description.
 
-This module collects every concrete value that describes the one robot
-this project ships: joint groupings, the home pose, the VAMP planning
-subgroups, the kinodynamic limits and the top-level ``RobotConfig``
-instance.
+This module collects every concrete value that describes the first
+robot this project ships (the second is :mod:`drone_planning.drone`):
+joint groupings, the home pose, the VAMP planning subgroups, the
+kinodynamic limits and the top-level ``RobotConfig`` instance.
 
 The dataclass *types* themselves live in :mod:`drone_planning.types.robot`
 — this file holds *values* of those types.
@@ -39,6 +39,9 @@ from drone_planning.types.robot import CameraConfig, RobotConfig
 
 _PKG_ROOT = os.path.dirname(os.path.abspath(__file__))
 _RESOURCES_DIR = os.path.join(_PKG_ROOT, "resources", "robot", "x500")
+
+# The robot name of ``OmplVampPlanner(ROBOT_NAME)`` and ``create_planner``.
+ROBOT_NAME = "x500"
 
 # Atomic joint groups — indices into the full 6-DOF configuration array.
 # Order matches VAMP's URDF tree traversal: body → gimbal.

@@ -1,4 +1,4 @@
-"""The distance-grid (ESDF) input of ``OmplVampPlanner``.
+"""The distance-grid (ESDF) input of ``OmplVampPlanner``, for both robots.
 
 A sphere of the robot is free where the trilinear distance at its centre
 is at least its radius and the sphere lies wholly inside the lattice's
@@ -12,11 +12,11 @@ import pinocchio as pin
 import pytest
 from conftest import lattice
 
-from drone_planning import x500
+from drone_planning import drone, x500
 from drone_planning._ompl_vamp import OmplVampPlanner
 from drone_planning.planning import create_planner
 
-ROBOTS = {"x500": x500}
+ROBOTS = {"x500": x500, "drone": drone}
 
 
 def sphere_model(urdf: str, q: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -54,9 +54,9 @@ def test_distance_grid_agrees_with_sphere_obstacles(robot):
     points, origin = lattice([-2.0, -2.0, 0.0], [2.0, 2.0, 2.5], spacing)
     distances = np.min([np.linalg.norm(points - c, axis=-1) for c in centers], 0)
     distances -= radius
-    grid = OmplVampPlanner()
+    grid = OmplVampPlanner(robot)
     grid.set_distance_grid(distances.astype(np.float32), origin, [spacing] * 3)
-    inflated, deflated = OmplVampPlanner(), OmplVampPlanner()
+    inflated, deflated = OmplVampPlanner(robot), OmplVampPlanner(robot)
     for center in centers:
         inflated.add_sphere(center.tolist(), radius + tol)
         deflated.add_sphere(center.tolist(), radius - tol)
@@ -83,7 +83,7 @@ def test_distance_grid_box_is_the_workspace(robot):
     spacing = 0.05
     lower, upper = np.array([-1.0, -1.5, 0.0]), np.array([1.0, 1.5, 2.5])
     points, origin = lattice(lower, upper, spacing)
-    planner = OmplVampPlanner()
+    planner = OmplVampPlanner(robot)
     planner.set_distance_grid(
         np.full(points.shape[:3], 10.0, dtype=np.float32), origin, [spacing] * 3
     )
@@ -113,7 +113,7 @@ def test_distance_grid_replace_and_remove(robot):
     # A floor up to 1.5 m: the hovering robot is inside it.
     floor = (points[..., 2] - 1.5).astype(np.float32)
     free = np.full(points.shape[:3], 10.0, dtype=np.float32)
-    planner = OmplVampPlanner()
+    planner = OmplVampPlanner(robot)
     assert not planner.has_distance_grid()
     assert planner.validate(home)
     planner.set_distance_grid(floor, origin, [spacing] * 3)
@@ -136,7 +136,7 @@ def test_distance_grid_replace_and_remove(robot):
 
 @pytest.mark.parametrize("robot", ROBOTS)
 def test_distance_grid_inputs_are_checked(robot):
-    planner = OmplVampPlanner()
+    planner = OmplVampPlanner(robot)
     field = np.zeros((4, 5, 6), dtype=np.float32)
     origin, spacing = [0.0, 0.0, 0.0], [0.1, 0.1, 0.1]
     # Wrong dtype, order, layout or number of axes: not converted (a
@@ -175,7 +175,7 @@ def test_distance_grid_reads_the_array_in_place(robot):
     spacing = 0.05
     points, origin = lattice([-2.0, -2.0, 0.0], [2.0, 2.0, 2.5], spacing)
     field = np.full(points.shape[:3], 10.0, dtype=np.float32)
-    planner = OmplVampPlanner()
+    planner = OmplVampPlanner(robot)
     planner.set_distance_grid(field, origin, [spacing] * 3)
     assert planner.validate(home)
     field[...] = -1.0

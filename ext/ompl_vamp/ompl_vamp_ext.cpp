@@ -16,6 +16,7 @@
 #include <nanobind/stl/pair.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/tuple.h>
+#include <nanobind/stl/unique_ptr.h>
 #include <nanobind/stl/vector.h>
 
 #include <Eigen/Core>
@@ -26,6 +27,7 @@
 namespace nb = nanobind;
 using drone_planning::KinodynamicResult;
 using drone_planning::KinodynamicSettings;
+using drone_planning::make_planner;
 using drone_planning::OmplVampPlanner;
 using drone_planning::PlanResult;
 using drone_planning::flat::FlatTrajectory;
@@ -45,6 +47,13 @@ auto in_place(const Field& field) -> std::shared_ptr<const float> {
     delete held;
   });
 }
+
+/// ``OmplVampPlanner.default_joint_limits`` is this descriptor.  On a
+/// planner it gives the limits of that planner's robot.  On the class it
+/// is the static function it was before there was more than one robot:
+/// ``OmplVampPlanner.default_joint_limits()`` gives the X500's limits and
+/// ``OmplVampPlanner.default_joint_limits("drone")`` the drone's.
+struct DefaultJointLimits {};
 
 auto to_matrix(const FlatTrajectory::Matrix& rows, int ndof)
     -> Eigen::MatrixXd {
@@ -70,8 +79,8 @@ auto eval_one(const FlatTrajectory& traj, double t, int which)
 
 NB_MODULE(_ompl_vamp, m) {
   m.doc() =
-      "OMPL + VAMP C++ planning extension for the Holybro X500 V2 "
-      "(6 DOF: x, y, z, yaw + gimbal pan, tilt).";
+      "OMPL + VAMP C++ planning extension for the Holybro X500 V2 and "
+      "PHANTOM's drone (6 DOF: x, y, z, yaw + gimbal pan, tilt).";
 
   nb::class_<PlanResult>(m, "PlanResult")
       .def_ro("solved", &PlanResult::solved)
@@ -178,66 +187,119 @@ NB_MODULE(_ompl_vamp, m) {
       "Minimum-cost duration T* and cost J(T*) of the LQMT (cubic) motion "
       "between two flat states, J(T) = sum_i w_i int y_i''^2 dt + rho T.");
 
-  nb::class_<OmplVampPlanner>(m, "OmplVampPlanner")
-      .def(nb::init<>(), "Create a full-body planner (6 DOF).")
-      .def(nb::init<std::vector<int>, std::vector<double>>(),
-           "Create a subgroup planner.", nb::arg("active_indices"),
-           nb::arg("frozen_config"))
-      .def("add_pointcloud", &OmplVampPlanner::add_pointcloud,
-           nb::arg("points"), nb::arg("point_radius"))
-      .def("remove_pointcloud", &OmplVampPlanner::remove_pointcloud)
-      .def("has_pointcloud", &OmplVampPlanner::has_pointcloud)
+  auto planner_class =
+      nb::class_<OmplVampPlanner>(m, "OmplVampPlanner")
+          .def(nb::new_([] { return make_planner("x500"); }),
+               "Create a full-body X500 planner (6 DOF).")
+          .def(nb::new_([](const std::string& robot) {
+                 return make_planner(robot);
+               }),
+               nb::arg("robot"),
+               "Create a full-body planner (6 DOF) of ``robot``: \"x500\" or "
+               "\"drone\".")
+          .def(nb::new_([](std::vector<int> active_indices,
+                           std::vector<double> frozen_config) {
+                 auto planner = make_planner("x500");
+                 planner->set_subgroup(std::move(active_indices),
+                                       std::move(frozen_config));
+                 return planner;
+               }),
+               nb::arg("active_indices"), nb::arg("frozen_config"),
+               "Create an X500 subgroup planner.")
+          .def(nb::new_([](const std::string& robot,
+                           std::vector<int> active_indices,
+                           std::vector<double> frozen_config) {
+                 auto planner = make_planner(robot);
+                 planner->set_subgroup(std::move(active_indices),
+                                       std::move(frozen_config));
+                 return planner;
+               }),
+               nb::arg("robot"), nb::arg("active_indices"),
+               nb::arg("frozen_config"),
+               "Create a subgroup planner of ``robot`` over "
+               "``active_indices``; the other joints are pinned to "
+               "``frozen_config`` (full body).")
+          .def("add_pointcloud", &OmplVampPlanner::add_pointcloud,
+               nb::arg("points"), nb::arg("point_radius"))
+          .def("remove_pointcloud", &OmplVampPlanner::remove_pointcloud)
+          .def("has_pointcloud", &OmplVampPlanner::has_pointcloud)
+          .def(
+              "set_distance_grid",
+              [](OmplVampPlanner& planner, const Field& distances,
+                 const std::array<float, 3>& origin,
+                 const std::array<float, 3>& spacing) {
+                planner.set_distance_grid(
+                    in_place(distances),
+                    {distances.shape(0), distances.shape(1),
+                     distances.shape(2)},
+                    origin, spacing);
+              },
+              // No implicit conversion: a converted array would be a copy.
+              nb::arg("distances").noconvert(), nb::arg("origin"),
+              nb::arg("spacing"),
+              "Set the scene distance grid (float32 (X, Y, Z), C order, read "
+              "in place), replacing any previous one.")
+          .def("remove_distance_grid", &OmplVampPlanner::remove_distance_grid)
+          .def("has_distance_grid", &OmplVampPlanner::has_distance_grid)
+          .def("add_sphere", &OmplVampPlanner::add_sphere, nb::arg("center"),
+               nb::arg("radius"))
+          .def("clear_environment", &OmplVampPlanner::clear_environment)
+          .def("plan", &OmplVampPlanner::plan, nb::arg("start"),
+               nb::arg("goal"), nb::arg("planner_name") = "rrtc",
+               nb::arg("time_limit") = 10.0, nb::arg("simplify") = true,
+               nb::arg("interpolate") = true, nb::arg("resolution") = 64.0)
+          .def("plan_kinodynamic", &OmplVampPlanner::plan_kinodynamic,
+               nb::arg("start"), nb::arg("start_velocity"), nb::arg("goal"),
+               nb::arg("time_limit"), nb::arg("settings"),
+               "FLASK kinodynamic planning in the flat output space.  "
+               "Returns a KinodynamicResult whose trajectory is "
+               "time-parameterised.")
+          .def("simplify_path", &OmplVampPlanner::simplify_path,
+               nb::arg("path"), nb::arg("time_limit") = 1.0)
+          .def("interpolate_path", &OmplVampPlanner::interpolate_path,
+               nb::arg("path"), nb::arg("count") = 0,
+               nb::arg("resolution") = 64.0)
+          .def("validate", &OmplVampPlanner::validate, nb::arg("config"))
+          .def("validate_batch", &OmplVampPlanner::validate_batch,
+               nb::arg("configs"))
+          .def("dimension", &OmplVampPlanner::dimension)
+          .def("lower_bounds", &OmplVampPlanner::lower_bounds)
+          .def("upper_bounds", &OmplVampPlanner::upper_bounds)
+          .def("joint_limits", &OmplVampPlanner::joint_limits)
+          .def("set_joint_limits", &OmplVampPlanner::set_joint_limits,
+               nb::arg("lower"), nb::arg("upper"))
+          .def("filter_pointcloud", &OmplVampPlanner::filter_pointcloud,
+               nb::arg("points"), nb::arg("min_dist"), nb::arg("max_range"),
+               nb::arg("origin"), nb::arg("workspace_min"),
+               nb::arg("workspace_max"), nb::arg("cull") = true)
+          .def("filter_self_from_pointcloud",
+               &OmplVampPlanner::filter_self_from_pointcloud, nb::arg("points"),
+               nb::arg("point_radius"), nb::arg("config"))
+          .def("set_subgroup", &OmplVampPlanner::set_subgroup,
+               nb::arg("active_indices"), nb::arg("frozen_config"));
+
+  nb::class_<DefaultJointLimits>(m, "_DefaultJointLimits")
       .def(
-          "set_distance_grid",
-          [](OmplVampPlanner& planner, const Field& distances,
-             const std::array<float, 3>& origin,
-             const std::array<float, 3>& spacing) {
-            planner.set_distance_grid(
-                in_place(distances),
-                {distances.shape(0), distances.shape(1), distances.shape(2)},
-                origin, spacing);
+          "__get__",
+          [](const DefaultJointLimits&, nb::handle planner,
+             nb::handle) -> nb::object {
+            if (planner.is_none())
+              return nb::cpp_function(
+                  [](const std::string& robot) {
+                    return make_planner(robot)->default_joint_limits();
+                  },
+                  nb::arg("robot") = "x500", nb::name("default_joint_limits"),
+                  "``(lower, upper)`` limits compiled into the model of "
+                  "``robot`` (default \"x500\"), full-body order.");
+            return nb::cpp_function(
+                [self = nb::borrow(planner)] {
+                  return nb::cast<const OmplVampPlanner&>(self)
+                      .default_joint_limits();
+                },
+                nb::name("default_joint_limits"),
+                "``(lower, upper)`` limits compiled into this planner's "
+                "robot model, full-body order.");
           },
-          // No implicit conversion: a converted array would be a copy.
-          nb::arg("distances").noconvert(), nb::arg("origin"),
-          nb::arg("spacing"),
-          "Set the scene distance grid (float32 (X, Y, Z), C order, read in "
-          "place), replacing any previous one.")
-      .def("remove_distance_grid", &OmplVampPlanner::remove_distance_grid)
-      .def("has_distance_grid", &OmplVampPlanner::has_distance_grid)
-      .def("add_sphere", &OmplVampPlanner::add_sphere, nb::arg("center"),
-           nb::arg("radius"))
-      .def("clear_environment", &OmplVampPlanner::clear_environment)
-      .def("plan", &OmplVampPlanner::plan, nb::arg("start"), nb::arg("goal"),
-           nb::arg("planner_name") = "rrtc", nb::arg("time_limit") = 10.0,
-           nb::arg("simplify") = true, nb::arg("interpolate") = true,
-           nb::arg("resolution") = 64.0)
-      .def("plan_kinodynamic", &OmplVampPlanner::plan_kinodynamic,
-           nb::arg("start"), nb::arg("start_velocity"), nb::arg("goal"),
-           nb::arg("time_limit"), nb::arg("settings"),
-           "FLASK kinodynamic planning in the flat output space.  Returns a "
-           "KinodynamicResult whose trajectory is time-parameterised.")
-      .def("simplify_path", &OmplVampPlanner::simplify_path, nb::arg("path"),
-           nb::arg("time_limit") = 1.0)
-      .def("interpolate_path", &OmplVampPlanner::interpolate_path,
-           nb::arg("path"), nb::arg("count") = 0, nb::arg("resolution") = 64.0)
-      .def("validate", &OmplVampPlanner::validate, nb::arg("config"))
-      .def("validate_batch", &OmplVampPlanner::validate_batch,
-           nb::arg("configs"))
-      .def("dimension", &OmplVampPlanner::dimension)
-      .def("lower_bounds", &OmplVampPlanner::lower_bounds)
-      .def("upper_bounds", &OmplVampPlanner::upper_bounds)
-      .def_static("default_joint_limits",
-                  &OmplVampPlanner::default_joint_limits)
-      .def("joint_limits", &OmplVampPlanner::joint_limits)
-      .def("set_joint_limits", &OmplVampPlanner::set_joint_limits,
-           nb::arg("lower"), nb::arg("upper"))
-      .def("filter_pointcloud", &OmplVampPlanner::filter_pointcloud,
-           nb::arg("points"), nb::arg("min_dist"), nb::arg("max_range"),
-           nb::arg("origin"), nb::arg("workspace_min"),
-           nb::arg("workspace_max"), nb::arg("cull") = true)
-      .def("filter_self_from_pointcloud",
-           &OmplVampPlanner::filter_self_from_pointcloud, nb::arg("points"),
-           nb::arg("point_radius"), nb::arg("config"))
-      .def("set_subgroup", &OmplVampPlanner::set_subgroup,
-           nb::arg("active_indices"), nb::arg("frozen_config"));
+          nb::arg("planner").none(), nb::arg("owner").none() = nb::none());
+  planner_class.attr("default_joint_limits") = DefaultJointLimits{};
 }

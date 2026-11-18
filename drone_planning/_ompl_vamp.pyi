@@ -6,10 +6,14 @@ installed package.  This stub mirrors the nanobind bindings exactly so
 type checkers can resolve ``import drone_planning._ompl_vamp``.
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from typing import overload
 
 import numpy as np
 from numpy.typing import NDArray
+
+#: ``(lower, upper)`` joint limits, full-body order.
+JointLimits = tuple[NDArray[np.float64], NDArray[np.float64]]
 
 class PlanResult:
     """Result of a single ``OmplVampPlanner.plan`` call."""
@@ -43,7 +47,8 @@ class KinodynamicSettings:
 
     See ``ext/ompl_vamp/plan_kinodynamic.hpp`` for field semantics;
     :class:`drone_planning.types.KinodynamicConfig` fills them from the
-    robot limits in :mod:`drone_planning.x500`.  ``min_*`` / ``max_*``
+    robot limits in :mod:`drone_planning.x500` or
+    :mod:`drone_planning.drone`.  ``min_*`` / ``max_*``
     hold one value per active DOF; the horizontal pair (``base_x_joint``,
     ``base_y_joint``) is also bounded in norm when both are active.
     """
@@ -131,22 +136,59 @@ def flat_optimal_time(
     motion between two flat states, ``J(T) = sum_i w_i int y_i''^2 dt + rho T``."""
     ...
 
+class _DefaultJointLimits:
+    """The type of :attr:`OmplVampPlanner.default_joint_limits`.
+
+    On a planner, ``planner.default_joint_limits()`` gives the limits of
+    that planner's robot.  On the class it works as before there was more
+    than one robot: ``OmplVampPlanner.default_joint_limits()`` gives the
+    X500's limits, and ``OmplVampPlanner.default_joint_limits("drone")``
+    the drone's.
+    """
+
+    @overload
+    def __get__(
+        self, planner: None, owner: type[OmplVampPlanner] | None = None
+    ) -> Callable[..., JointLimits]: ...
+    @overload
+    def __get__(
+        self, planner: OmplVampPlanner, owner: type[OmplVampPlanner] | None = None
+    ) -> Callable[[], JointLimits]: ...
+
 class OmplVampPlanner:
     """OMPL planner with VAMP SIMD-accelerated collision checking.
 
-    Two construction modes:
+    Two robots: ``"x500"`` (the Holybro X500, the default) and
+    ``"drone"`` (PHANTOM's drone).  Both have 6 DOF (x, y, z, yaw, gimbal
+    pan, gimbal tilt).  Construction modes:
 
-    * ``OmplVampPlanner()`` — full body, 6 DOF (x, y, z, yaw, gimbal pan,
-      gimbal tilt).
-    * ``OmplVampPlanner(active_indices, frozen_config)`` — subgroup over
-      the listed joints; the C++ collision checker injects
+    * ``OmplVampPlanner()`` — the X500's full body, 6 DOF.
+    * ``OmplVampPlanner(robot)`` — the full body of ``robot``.
+    * ``OmplVampPlanner(active_indices, frozen_config)`` — an X500
+      subgroup over the listed joints; the C++ collision checker injects
       ``frozen_config`` for every other joint before every query.
+    * ``OmplVampPlanner(robot, active_indices, frozen_config)`` — the same
+      for ``robot``.
+
+    Raises:
+        ValueError: For an unknown robot name, and as :meth:`set_subgroup`
+            for bad subgroup inputs.
     """
 
+    @overload
+    def __init__(self) -> None: ...
+    @overload
+    def __init__(self, robot: str) -> None: ...
+    @overload
+    def __init__(
+        self, active_indices: Sequence[int], frozen_config: Sequence[float]
+    ) -> None: ...
+    @overload
     def __init__(
         self,
-        active_indices: Sequence[int] = ...,
-        frozen_config: Sequence[float] = ...,
+        robot: str,
+        active_indices: Sequence[int],
+        frozen_config: Sequence[float],
     ) -> None: ...
     def add_pointcloud(self, points: NDArray[np.float32], point_radius: float) -> None:
         """Set the scene point cloud, replacing any previous one.
@@ -294,11 +336,11 @@ class OmplVampPlanner:
     def upper_bounds(self) -> NDArray[np.float64]:
         """Upper joint limits of the active DOF."""
         ...
-
-    @staticmethod
-    def default_joint_limits() -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-        """``(lower, upper)`` limits compiled into the robot model, full-body order."""
-        ...
+    default_joint_limits: _DefaultJointLimits
+    """``(lower, upper)`` limits compiled into the robot model, full-body
+    order: ``planner.default_joint_limits()`` for the planner's robot,
+    ``OmplVampPlanner.default_joint_limits(robot="x500")`` for a robot
+    by name."""
 
     def joint_limits(self) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """``(lower, upper)`` limits in effect, full-body order."""
