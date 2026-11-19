@@ -6,7 +6,8 @@
  * joints (x, y, z, yaw) and the camera gimbal (pan, tilt).
  *
  *   * ``X500Spec``  — the Holybro X500 V2 with PX4's gimbal (126 spheres).
- *   * ``DroneSpec`` — PHANTOM's drone: one sphere of 0.30 m on the body.
+ *   * ``DroneSpec`` — PHANTOM's drone: 10 spheres on the body (foam's fit
+ *     of the body box and one sphere for the camera).
  *
  * Every joint is a plain bounded real, so the OMPL state is a
  * ``RealVectorStateSpace`` over the active joints.  It is expanded to the
