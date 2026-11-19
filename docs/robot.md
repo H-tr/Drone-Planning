@@ -6,7 +6,7 @@ The package has two robots. Both have 6 DOF in the same order: the body
 | Robot name | Model | Collision model | Limits |
 |---|---|---|---|
 | `x500` (default) | Holybro X500 V2 with PX4's gimbal | 126 spheres | PX4 v1.17 defaults |
-| `drone` | [PHANTOM's drone](#phantoms-drone) | 1 sphere, radius 0.30 m | PHANTOM's |
+| `drone` | [PHANTOM's drone](#phantoms-drone) | 10 spheres (foam) | PHANTOM's |
 
 Pick a robot by its name: `create_planner("drone")`,
 `create_planner("drone_base")` or `OmplVampPlanner("drone")`. Without a
@@ -175,8 +175,9 @@ The drone of the PHANTOM planner
 ([H-tr/PHANTOM-Planner](https://github.com/H-tr/PHANTOM-Planner),
 `phantom/robot/drone.urdf`). It is a simple model of a stabilized
 multirotor: the flight controller holds roll and pitch, so the body is
-position and yaw. A camera hangs 6 cm below the body centre on a pan-tilt
-gimbal. The configuration is 6-DOF, in PHANTOM's order:
+position and yaw. The body is a box of 0.46 × 0.46 × 0.12 m, and a camera
+(a box of 0.08 × 0.06 × 0.04 m) hangs 6 cm below the body centre on a
+pan-tilt gimbal. The configuration is 6-DOF, in PHANTOM's order:
 
 | Index | Joint | Group | Range | Notes |
 |------:|-------|-------|-------|-------|
@@ -201,22 +202,59 @@ The files are in `drone_planning/resources/robot/drone/`:
   base_z_joint → base_yaw_joint → base_link`), as for the X500. The body
   link is `base_link`; the gimbal joints and links keep PHANTOM's names
   (`camera_pan`, `gimbal`, `camera_tilt`, `camera`). The visual boxes are
-  kept. The camera's optical axis is the x axis of `camera`.
-* `drone_spherized.urdf` — the source of the VAMP model. **It is written
-  by hand, without foam:** the collision geometry of `drone.urdf` already
-  is one sphere (radius 0.30 m at the origin of `base_link`), so this file
-  keeps the joints and that sphere and drops the visual boxes.
+  kept, and the body box is also the collision geometry, foam's input.
+  The camera's optical axis is the x axis of `camera`.
+* `drone_spherized.urdf` — the source of the VAMP model, written by
+  `pixi run spherize-robot-drone` (`scripts/spherize_robot.sh drone`, see
+  below): the joints of `drone.urdf` and 10 spheres on `base_link`, without
+  visual geometry.
 * `drone.srdf` — the planning groups. Only `base_link` has collision
   geometry, so there is no pair of links to check against each other:
   the drone cannot collide with itself.
+
+### Spherization
+
+`scripts/spherize_robot.sh drone` runs foam
+(`third_party/foam/scripts/generate_sphere_urdf.py`, the submodule's
+commit `116928f`) on the body box of `drone.urdf` with the medial method,
+one level of 9 spheres: `--method medial --depth 1 --branch 9
+--volume_heuristic_ratio 100`. foam's volume rule would give this box
+`int(0.7 × 5.97) = 4` spheres; the ratio 100 lifts that cap, so `--branch`
+sets the count. Two runs give the same file. Then
+`scripts/finish_drone_spheres.py` makes the model whole:
+
+1. **The box is covered.** foam covers its sample points on the box
+   surface, not the whole box: the largest distance of a box point outside
+   its spheres is 3.73 mm (a 93 × 93 × 25 lattice of the box, then local
+   search from its 60 worst points). Every sphere grows by that distance
+   rounded up to 0.1 mm, 3.8 mm.
+2. **The camera is covered.** At tilt −90° the camera box hangs from 6 to
+   14 cm below the body centre, 8 cm below the body, outside the box's
+   spheres (by up to 2.6 cm). Every point of the camera box lies within
+   √(0.08² + 0.03² + 0.02²) = 87.8 mm of the gimbal pivot, the origin of
+   `camera_pan` (the tilt axis passes through it too), at every pan and
+   tilt. One sphere of 87.8 mm at the pivot, fixed to the body, holds the
+   camera in every gimbal pose, so the collision check does not depend on
+   the gimbal angles.
+
+The 9 spheres form a flat 3 × 3 layer at the body's mid-height (radius
+117–131 mm after the growth). The count is the knee of foam's fit error
+against the count (largest distance of a sphere point beyond the box,
+after the growth): 27.1 cm with 1 sphere, 11.9 cm with 4, 7.1 cm with 9,
+6.8 cm with 10 and 5.0 cm with 15; from 4 to 9 each sphere lowers it by
+about 1 cm, past 9 by about 0.35 cm. With 9, the mean distance of the
+model's outer surface beyond the box is 4.0 cm. The model reaches 13.1 cm
+above and 14.8 cm below the body centre (the box: 6 cm; the camera:
+14 cm below) and 34.7 cm from the vertical axis through the centre (the
+box corners: 32.5 cm).
 
 cricket (`pixi run generate-fk-drone`, which runs
 `scripts/generate_fk.sh drone`) turns `drone_spherized.urdf` and
 `drone.srdf` with `scripts/cricket_configs/drone.json` into
 `ext/ompl_vamp/include/vamp/robots/drone.hh` (`vamp::robots::Drone`). Its
 motion-check `resolution` is 64 (one check every 1.6 cm of translation),
-the value of Autolife-Planning's model. The gimbal angles do not enter
-the collision check: only the body position does.
+the value of Autolife-Planning's model. The spheres turn with the yaw;
+the gimbal angles do not enter the collision check.
 
 ### Limits
 

@@ -49,8 +49,8 @@ unified Python API.
 
     PX4's official `x500_gimbal` Gazebo model converted to URDF —
     meshes, poses and dimensions kept — spherized with foam and compiled
-    to a VAMP collision model with cricket; and PHANTOM's drone, one
-    sphere of 0.30 m.
+    to a VAMP collision model with cricket; and PHANTOM's drone, its
+    body box spherized with foam (10 spheres).
 
 -   :material-map-marker-path:{ .lg .middle } [__Motion Planning__](planning/index.md)
 
