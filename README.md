@@ -1,8 +1,8 @@
 # Drone-Planning
 
 A motion planning library for drones with a pan-tilt gimbal camera: the
-**Holybro X500 V2 quadrotor** and **PHANTOM's drone** (a simple model with
-one collision sphere). Same public API and module layout as its sister
+**Holybro X500 V2 quadrotor** and **PHANTOM's drone** (a simple model: a
+box body and a gimbal camera, 10 collision spheres). Same public API and module layout as its sister
 packages [Fetch-Planning](https://github.com/H-tr/Fetch-Planning) and
 Autolife-Planning — OMPL planners over a VAMP SIMD collision backend,
 FLASK kinodynamic planning and TOPP-RA time parameterization — so code
@@ -21,7 +21,7 @@ Documentation: <https://h-tr.github.io/Drone-Planning/>
 | Robot name | Model | Collision model | Limits |
 |---|---|---|---|
 | `x500` (default) | Holybro X500 V2 with PX4's gimbal | 126 spheres | PX4 v1.17 defaults (`drone_planning/x500.py`) |
-| `drone` | PHANTOM's drone | 1 sphere, radius 0.30 m | PHANTOM's (`drone_planning/drone.py`) |
+| `drone` | PHANTOM's drone | 10 spheres (foam) | PHANTOM's (`drone_planning/drone.py`) |
 
 Both robots have 6 DOF in the same order: the body `(x, y, z, yaw)`, then
 the camera pan and tilt. Pick a robot by its name, for example
@@ -69,10 +69,12 @@ Kinodynamic limits are PX4 v1.17 default parameters (`drone_planning/x500.py`):
 
 The drone of the PHANTOM planner (`phantom/robot/drone.urdf` in
 H-tr/PHANTOM-Planner). The flight controller holds roll and pitch, so the
-body is position and yaw. The collision model is **one sphere** of radius
-0.30 m at the body centre. The camera hangs 6 cm below the body centre;
-the gimbal links have no collision geometry, so the camera angles never
-change whether the drone collides.
+body is position and yaw. The body is a box of 0.46 × 0.46 × 0.12 m, and
+the camera hangs 6 cm below the body centre. The collision model is **10
+spheres** on the body: foam's 9 spheres of the box (radius 117–131 mm, a
+flat 3 × 3 layer) and one sphere of 87.8 mm at the gimbal pivot, which
+holds the camera at every pan and tilt. So the camera angles never change
+whether the drone collides.
 
 | Index | Joint | Group | Range |
 |------:|-------|-------|-------|

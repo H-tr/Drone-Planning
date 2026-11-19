@@ -12,9 +12,9 @@ struct Drone
 {
     static constexpr char* name = "drone";
     static constexpr std::size_t dimension = 6;
-    static constexpr std::size_t n_spheres = 1;
-    static constexpr float min_radius = 0.30000001192092896;
-    static constexpr float max_radius = 0.30000001192092896;
+    static constexpr std::size_t n_spheres = 10;
+    static constexpr float min_radius = 0.08780000358819962;
+    static constexpr float max_radius = 0.13140399754047394;
     static constexpr std::size_t resolution = 64;
 
     static constexpr std::array<std::string_view, dimension> joint_names = {"base_x_joint", "base_y_joint", "base_z_joint", "base_yaw_joint", "camera_pan", "camera_tilt"};
@@ -94,17 +94,56 @@ q[5] = 0.47746482491493225 * (q[5] - -1.5707963705062866);
     template <std::size_t rake>
     static inline void sphere_fk(const ConfigurationBlock<rake> &x, Spheres<rake> &out) noexcept
     {
-        std::array<FloatVector<rake, 1>, 0> v;
-        std::array<FloatVector<rake, 1>, 4> y;
+        std::array<FloatVector<rake, 1>, 3> v;
+        std::array<FloatVector<rake, 1>, 40> y;
 
-           // dependent variables without operations
-   y[0] = x[0];
-   y[1] = x[1];
+           v[0] = cos(x[3]);
+   v[1] = sin(x[3]);
+   v[2] = 0. - v[1];
+   y[0] = -0.163933 * v[0] + 0.161097 * v[2] + x[0];
+   y[1] = -0.163933 * v[1] + 0.161097 * v[0] + x[1];
+   y[4] = 0.155558 * v[0] + 0.160996 * v[2] + x[0];
+   y[5] = 0.155558 * v[1] + 0.160996 * v[0] + x[1];
+   y[6] = 1e-06 + x[2];
+   y[8] = -0.006587 * v[0] + 0.161147 * v[2] + x[0];
+   y[9] = -0.006587 * v[1] + 0.161147 * v[0] + x[1];
+   y[10] = 1e-05 + x[2];
+   y[12] = 0.150841 * v[0] + 0.013792 * v[2] + x[0];
+   y[13] = 0.150841 * v[1] + 0.013792 * v[0] + x[1];
+   y[14] = -4e-06 + x[2];
+   y[16] = 0.169164 * v[0] + -0.146881 * v[2] + x[0];
+   y[17] = 0.169164 * v[1] + -0.146881 * v[0] + x[1];
+   y[20] = 0.018668 * v[0] + -0.15564 * v[2] + x[0];
+   y[21] = 0.018668 * v[1] + -0.15564 * v[0] + x[1];
+   y[22] = -1e-06 + x[2];
+   y[24] = -0.149995 * v[0] + -0.163411 * v[2] + x[0];
+   y[25] = -0.149995 * v[1] + -0.163411 * v[0] + x[1];
+   y[28] = -0.169972 * v[0] + -0.005049 * v[2] + x[0];
+   y[29] = -0.169972 * v[1] + -0.005049 * v[0] + x[1];
+   y[30] = 1e-06 + x[2];
+   y[32] = -0.031583 * v[0] + 0.012311 * v[2] + x[0];
+   y[33] = -0.031583 * v[1] + 0.012311 * v[0] + x[1];
+   y[34] = 5e-06 + x[2];
+   y[38] = -0.06 + x[2];
+   // dependent variables without operations
    y[2] = x[2];
-   y[3] = 0.300000011920929;
+   y[3] = 0.116599999368191;
+   y[7] = 0.121711999177933;
+   y[11] = 0.129785999655724;
+   y[15] = 0.12432699650526;
+   y[18] = x[2];
+   y[19] = 0.123264998197556;
+   y[23] = 0.131403997540474;
+   y[26] = x[2];
+   y[27] = 0.124007001519203;
+   y[31] = 0.12466699630022;
+   y[35] = 0.130707994103432;
+   y[36] = x[0];
+   y[37] = x[1];
+   y[39] = 0.0878000035881996;
 
 
-        for (auto i = 0U; i < 1; ++i)
+        for (auto i = 0U; i < 10; ++i)
         {
             out.x[i] = y[i * 4 + 0];
             out.y[i] = y[i * 4 + 1];
@@ -120,18 +159,57 @@ q[5] = 0.47746482491493225 * (q[5] - -1.5707963705062866);
             const vamp::collision::Environment<FloatVector<rake>> &environment,
             const ConfigurationBlock<rake> &x) noexcept -> Debug
     {
-        std::array<FloatVector<rake, 1>, 0> v;
-        std::array<FloatVector<rake, 1>, 8> y;
+        std::array<FloatVector<rake, 1>, 3> v;
+        std::array<FloatVector<rake, 1>, 44> y;
 
-           // dependent variables without operations
-   y[0] = x[0];
-   y[1] = x[1];
+           v[0] = cos(x[3]);
+   v[1] = sin(x[3]);
+   v[2] = 0. - v[1];
+   y[0] = -0.163933 * v[0] + 0.161097 * v[2] + x[0];
+   y[1] = -0.163933 * v[1] + 0.161097 * v[0] + x[1];
+   y[4] = 0.155558 * v[0] + 0.160996 * v[2] + x[0];
+   y[5] = 0.155558 * v[1] + 0.160996 * v[0] + x[1];
+   y[6] = 1e-06 + x[2];
+   y[8] = -0.006587 * v[0] + 0.161147 * v[2] + x[0];
+   y[9] = -0.006587 * v[1] + 0.161147 * v[0] + x[1];
+   y[10] = 1e-05 + x[2];
+   y[12] = 0.150841 * v[0] + 0.013792 * v[2] + x[0];
+   y[13] = 0.150841 * v[1] + 0.013792 * v[0] + x[1];
+   y[14] = -4e-06 + x[2];
+   y[16] = 0.169164 * v[0] + -0.146881 * v[2] + x[0];
+   y[17] = 0.169164 * v[1] + -0.146881 * v[0] + x[1];
+   y[20] = 0.018668 * v[0] + -0.15564 * v[2] + x[0];
+   y[21] = 0.018668 * v[1] + -0.15564 * v[0] + x[1];
+   y[22] = -1e-06 + x[2];
+   y[24] = -0.149995 * v[0] + -0.163411 * v[2] + x[0];
+   y[25] = -0.149995 * v[1] + -0.163411 * v[0] + x[1];
+   y[28] = -0.169972 * v[0] + -0.005049 * v[2] + x[0];
+   y[29] = -0.169972 * v[1] + -0.005049 * v[0] + x[1];
+   y[30] = 1e-06 + x[2];
+   y[32] = -0.031583 * v[0] + 0.012311 * v[2] + x[0];
+   y[33] = -0.031583 * v[1] + 0.012311 * v[0] + x[1];
+   y[34] = 5e-06 + x[2];
+   y[38] = -0.06 + x[2];
+   y[40] = 0.00100651977118105 * v[0] + 0.000457263406133279 * v[2] + x[0];
+   y[41] = 0.00100651977118105 * v[1] + 0.000457263406133279 * v[0] + x[1];
+   // dependent variables without operations
    y[2] = x[2];
-   y[3] = 0.300000011920929;
-   y[4] = x[0];
-   y[5] = x[1];
-   y[6] = x[2];
-   y[7] = 0.300000011920929;
+   y[3] = 0.116599999368191;
+   y[7] = 0.121711999177933;
+   y[11] = 0.129785999655724;
+   y[15] = 0.12432699650526;
+   y[18] = x[2];
+   y[19] = 0.123264998197556;
+   y[23] = 0.131403997540474;
+   y[26] = x[2];
+   y[27] = 0.124007001519203;
+   y[31] = 0.12466699630022;
+   y[35] = 0.130707994103432;
+   y[36] = x[0];
+   y[37] = x[1];
+   y[39] = 0.0878000035881996;
+   y[42] = x[2];
+   y[43] = 0.346839368343353;
 
 
         Debug output;
@@ -145,6 +223,78 @@ q[5] = 0.47746482491493225 * (q[5] - -1.5707963705062866);
                 y[2],
                 y[3]));
         
+        output.first.emplace_back(
+            sphere_environment_get_collisions<decltype(x[0])>(
+                environment,
+                y[4],
+                y[5],
+                y[6],
+                y[7]));
+        
+        output.first.emplace_back(
+            sphere_environment_get_collisions<decltype(x[0])>(
+                environment,
+                y[8],
+                y[9],
+                y[10],
+                y[11]));
+        
+        output.first.emplace_back(
+            sphere_environment_get_collisions<decltype(x[0])>(
+                environment,
+                y[12],
+                y[13],
+                y[14],
+                y[15]));
+        
+        output.first.emplace_back(
+            sphere_environment_get_collisions<decltype(x[0])>(
+                environment,
+                y[16],
+                y[17],
+                y[18],
+                y[19]));
+        
+        output.first.emplace_back(
+            sphere_environment_get_collisions<decltype(x[0])>(
+                environment,
+                y[20],
+                y[21],
+                y[22],
+                y[23]));
+        
+        output.first.emplace_back(
+            sphere_environment_get_collisions<decltype(x[0])>(
+                environment,
+                y[24],
+                y[25],
+                y[26],
+                y[27]));
+        
+        output.first.emplace_back(
+            sphere_environment_get_collisions<decltype(x[0])>(
+                environment,
+                y[28],
+                y[29],
+                y[30],
+                y[31]));
+        
+        output.first.emplace_back(
+            sphere_environment_get_collisions<decltype(x[0])>(
+                environment,
+                y[32],
+                y[33],
+                y[34],
+                y[35]));
+        
+        output.first.emplace_back(
+            sphere_environment_get_collisions<decltype(x[0])>(
+                environment,
+                y[36],
+                y[37],
+                y[38],
+                y[39]));
+        
 
         
 
@@ -156,18 +306,57 @@ q[5] = 0.47746482491493225 * (q[5] - -1.5707963705062866);
             const vamp::collision::Environment<FloatVector<rake>> &environment,
             const ConfigurationBlock<rake> &x) noexcept
     {
-        std::array<FloatVector<rake, 1>, 0> v;
-        std::array<FloatVector<rake, 1>, 8> y;
+        std::array<FloatVector<rake, 1>, 3> v;
+        std::array<FloatVector<rake, 1>, 44> y;
 
-           // dependent variables without operations
-   y[0] = x[0];
-   y[1] = x[1];
+           v[0] = cos(x[3]);
+   v[1] = sin(x[3]);
+   v[2] = 0. - v[1];
+   y[0] = -0.163933 * v[0] + 0.161097 * v[2] + x[0];
+   y[1] = -0.163933 * v[1] + 0.161097 * v[0] + x[1];
+   y[4] = 0.155558 * v[0] + 0.160996 * v[2] + x[0];
+   y[5] = 0.155558 * v[1] + 0.160996 * v[0] + x[1];
+   y[6] = 1e-06 + x[2];
+   y[8] = -0.006587 * v[0] + 0.161147 * v[2] + x[0];
+   y[9] = -0.006587 * v[1] + 0.161147 * v[0] + x[1];
+   y[10] = 1e-05 + x[2];
+   y[12] = 0.150841 * v[0] + 0.013792 * v[2] + x[0];
+   y[13] = 0.150841 * v[1] + 0.013792 * v[0] + x[1];
+   y[14] = -4e-06 + x[2];
+   y[16] = 0.169164 * v[0] + -0.146881 * v[2] + x[0];
+   y[17] = 0.169164 * v[1] + -0.146881 * v[0] + x[1];
+   y[20] = 0.018668 * v[0] + -0.15564 * v[2] + x[0];
+   y[21] = 0.018668 * v[1] + -0.15564 * v[0] + x[1];
+   y[22] = -1e-06 + x[2];
+   y[24] = -0.149995 * v[0] + -0.163411 * v[2] + x[0];
+   y[25] = -0.149995 * v[1] + -0.163411 * v[0] + x[1];
+   y[28] = -0.169972 * v[0] + -0.005049 * v[2] + x[0];
+   y[29] = -0.169972 * v[1] + -0.005049 * v[0] + x[1];
+   y[30] = 1e-06 + x[2];
+   y[32] = -0.031583 * v[0] + 0.012311 * v[2] + x[0];
+   y[33] = -0.031583 * v[1] + 0.012311 * v[0] + x[1];
+   y[34] = 5e-06 + x[2];
+   y[38] = -0.06 + x[2];
+   y[40] = 0.00100651977118105 * v[0] + 0.000457263406133279 * v[2] + x[0];
+   y[41] = 0.00100651977118105 * v[1] + 0.000457263406133279 * v[0] + x[1];
+   // dependent variables without operations
    y[2] = x[2];
-   y[3] = 0.300000011920929;
-   y[4] = x[0];
-   y[5] = x[1];
-   y[6] = x[2];
-   y[7] = 0.300000011920929;
+   y[3] = 0.116599999368191;
+   y[7] = 0.121711999177933;
+   y[11] = 0.129785999655724;
+   y[15] = 0.12432699650526;
+   y[18] = x[2];
+   y[19] = 0.123264998197556;
+   y[23] = 0.131403997540474;
+   y[26] = x[2];
+   y[27] = 0.124007001519203;
+   y[31] = 0.12466699630022;
+   y[35] = 0.130707994103432;
+   y[36] = x[0];
+   y[37] = x[1];
+   y[39] = 0.0878000035881996;
+   y[42] = x[2];
+   y[43] = 0.346839368343353;
 
         
 
@@ -181,10 +370,10 @@ q[5] = 0.47746482491493225 * (q[5] - -1.5707963705062866);
 
 // base_link
 if (sphere_environment_in_collision(environment,
-                                    y[4],
-                                    y[5],
-                                    y[6],
-                                    y[7]))
+                                    y[40],
+                                    y[41],
+                                    y[42],
+                                    y[43]))
 {
     
     
@@ -193,6 +382,96 @@ if (sphere_environment_in_collision(environment,
                                         y[1],
                                         y[2],
                                         y[3]))
+    {
+        return false;
+    }
+    
+    
+    if (sphere_environment_in_collision(environment,
+                                        y[4],
+                                        y[5],
+                                        y[6],
+                                        y[7]))
+    {
+        return false;
+    }
+    
+    
+    if (sphere_environment_in_collision(environment,
+                                        y[8],
+                                        y[9],
+                                        y[10],
+                                        y[11]))
+    {
+        return false;
+    }
+    
+    
+    if (sphere_environment_in_collision(environment,
+                                        y[12],
+                                        y[13],
+                                        y[14],
+                                        y[15]))
+    {
+        return false;
+    }
+    
+    
+    if (sphere_environment_in_collision(environment,
+                                        y[16],
+                                        y[17],
+                                        y[18],
+                                        y[19]))
+    {
+        return false;
+    }
+    
+    
+    if (sphere_environment_in_collision(environment,
+                                        y[20],
+                                        y[21],
+                                        y[22],
+                                        y[23]))
+    {
+        return false;
+    }
+    
+    
+    if (sphere_environment_in_collision(environment,
+                                        y[24],
+                                        y[25],
+                                        y[26],
+                                        y[27]))
+    {
+        return false;
+    }
+    
+    
+    if (sphere_environment_in_collision(environment,
+                                        y[28],
+                                        y[29],
+                                        y[30],
+                                        y[31]))
+    {
+        return false;
+    }
+    
+    
+    if (sphere_environment_in_collision(environment,
+                                        y[32],
+                                        y[33],
+                                        y[34],
+                                        y[35]))
+    {
+        return false;
+    }
+    
+    
+    if (sphere_environment_in_collision(environment,
+                                        y[36],
+                                        y[37],
+                                        y[38],
+                                        y[39]))
     {
         return false;
     }
@@ -218,39 +497,75 @@ if (sphere_environment_in_collision(environment,
         const ConfigurationBlock<rake> &x) noexcept
     {
         std::array<FloatVector<rake, 1>, 9> v;
-        std::array<FloatVector<rake, 1>, 20> y;
+        std::array<FloatVector<rake, 1>, 56> y;
 
-           y[10] = -0.06 + x[2];
-   v[0] = cos(x[3]);
-   v[1] = cos(x[4]);
-   v[2] = sin(x[3]);
-   v[3] = 0. - v[2];
+           v[0] = cos(x[3]);
+   v[1] = sin(x[3]);
+   v[2] = 0. - v[1];
+   y[0] = -0.163933 * v[0] + 0.161097 * v[2] + x[0];
+   y[1] = -0.163933 * v[1] + 0.161097 * v[0] + x[1];
+   y[4] = 0.155558 * v[0] + 0.160996 * v[2] + x[0];
+   y[5] = 0.155558 * v[1] + 0.160996 * v[0] + x[1];
+   y[6] = 1e-06 + x[2];
+   y[8] = -0.006587 * v[0] + 0.161147 * v[2] + x[0];
+   y[9] = -0.006587 * v[1] + 0.161147 * v[0] + x[1];
+   y[10] = 1e-05 + x[2];
+   y[12] = 0.150841 * v[0] + 0.013792 * v[2] + x[0];
+   y[13] = 0.150841 * v[1] + 0.013792 * v[0] + x[1];
+   y[14] = -4e-06 + x[2];
+   y[16] = 0.169164 * v[0] + -0.146881 * v[2] + x[0];
+   y[17] = 0.169164 * v[1] + -0.146881 * v[0] + x[1];
+   y[20] = 0.018668 * v[0] + -0.15564 * v[2] + x[0];
+   y[21] = 0.018668 * v[1] + -0.15564 * v[0] + x[1];
+   y[22] = -1e-06 + x[2];
+   y[24] = -0.149995 * v[0] + -0.163411 * v[2] + x[0];
+   y[25] = -0.149995 * v[1] + -0.163411 * v[0] + x[1];
+   y[28] = -0.169972 * v[0] + -0.005049 * v[2] + x[0];
+   y[29] = -0.169972 * v[1] + -0.005049 * v[0] + x[1];
+   y[30] = 1e-06 + x[2];
+   y[32] = -0.031583 * v[0] + 0.012311 * v[2] + x[0];
+   y[33] = -0.031583 * v[1] + 0.012311 * v[0] + x[1];
+   y[34] = 5e-06 + x[2];
+   y[38] = -0.06 + x[2];
+   y[40] = 0.00100651977118105 * v[0] + 0.000457263406133279 * v[2] + x[0];
+   y[41] = 0.00100651977118105 * v[1] + 0.000457263406133279 * v[0] + x[1];
+   y[46] = -0.06 + x[2];
+   v[3] = cos(x[4]);
    v[4] = sin(x[4]);
-   v[5] = v[0] * v[1] + v[3] * v[4];
-   y[19] = cos(x[5]);
-   y[11] = v[5] * y[19];
-   v[6] = v[2] * v[1] + v[0] * v[4];
-   y[12] = v[6] * y[19];
+   v[5] = v[0] * v[3] + v[2] * v[4];
+   y[55] = cos(x[5]);
+   y[47] = v[5] * y[55];
+   v[6] = v[1] * v[3] + v[0] * v[4];
+   y[48] = v[6] * y[55];
    v[7] = -1. * sin(x[5]);
-   y[13] = 0. - v[7];
+   y[49] = 0. - v[7];
    v[4] = 0. - v[4];
-   v[8] = -1. * -1. * (1. - y[19]) + y[19];
-   y[14] = (v[0] * v[4] + v[3] * v[1]) * v[8];
-   y[15] = (v[2] * v[4] + v[0] * v[1]) * v[8];
-   y[17] = v[5] * v[7];
-   y[18] = v[6] * v[7];
+   v[8] = -1. * -1. * (1. - y[55]) + y[55];
+   y[50] = (v[0] * v[4] + v[2] * v[3]) * v[8];
+   y[51] = (v[1] * v[4] + v[0] * v[3]) * v[8];
+   y[53] = v[5] * v[7];
+   y[54] = v[6] * v[7];
    // dependent variables without operations
-   y[0] = x[0];
-   y[1] = x[1];
    y[2] = x[2];
-   y[3] = 0.300000011920929;
-   y[4] = x[0];
-   y[5] = x[1];
-   y[6] = x[2];
-   y[7] = 0.300000011920929;
-   y[8] = x[0];
-   y[9] = x[1];
-   y[16] = 0.;
+   y[3] = 0.116599999368191;
+   y[7] = 0.121711999177933;
+   y[11] = 0.129785999655724;
+   y[15] = 0.12432699650526;
+   y[18] = x[2];
+   y[19] = 0.123264998197556;
+   y[23] = 0.131403997540474;
+   y[26] = x[2];
+   y[27] = 0.124007001519203;
+   y[31] = 0.12466699630022;
+   y[35] = 0.130707994103432;
+   y[36] = x[0];
+   y[37] = x[1];
+   y[39] = 0.0878000035881996;
+   y[42] = x[2];
+   y[43] = 0.346839368343353;
+   y[44] = x[0];
+   y[45] = x[1];
+   y[52] = 0.;
 
         
 
@@ -264,10 +579,10 @@ if (sphere_environment_in_collision(environment,
 
 // base_link
 if (sphere_environment_in_collision(environment,
-                                    y[4],
-                                    y[5],
-                                    y[6],
-                                    y[7]))
+                                    y[40],
+                                    y[41],
+                                    y[42],
+                                    y[43]))
 {
     
     
@@ -276,6 +591,96 @@ if (sphere_environment_in_collision(environment,
                                         y[1],
                                         y[2],
                                         y[3]))
+    {
+        return false;
+    }
+    
+    
+    if (sphere_environment_in_collision(environment,
+                                        y[4],
+                                        y[5],
+                                        y[6],
+                                        y[7]))
+    {
+        return false;
+    }
+    
+    
+    if (sphere_environment_in_collision(environment,
+                                        y[8],
+                                        y[9],
+                                        y[10],
+                                        y[11]))
+    {
+        return false;
+    }
+    
+    
+    if (sphere_environment_in_collision(environment,
+                                        y[12],
+                                        y[13],
+                                        y[14],
+                                        y[15]))
+    {
+        return false;
+    }
+    
+    
+    if (sphere_environment_in_collision(environment,
+                                        y[16],
+                                        y[17],
+                                        y[18],
+                                        y[19]))
+    {
+        return false;
+    }
+    
+    
+    if (sphere_environment_in_collision(environment,
+                                        y[20],
+                                        y[21],
+                                        y[22],
+                                        y[23]))
+    {
+        return false;
+    }
+    
+    
+    if (sphere_environment_in_collision(environment,
+                                        y[24],
+                                        y[25],
+                                        y[26],
+                                        y[27]))
+    {
+        return false;
+    }
+    
+    
+    if (sphere_environment_in_collision(environment,
+                                        y[28],
+                                        y[29],
+                                        y[30],
+                                        y[31]))
+    {
+        return false;
+    }
+    
+    
+    if (sphere_environment_in_collision(environment,
+                                        y[32],
+                                        y[33],
+                                        y[34],
+                                        y[35]))
+    {
+        return false;
+    }
+    
+    
+    if (sphere_environment_in_collision(environment,
+                                        y[36],
+                                        y[37],
+                                        y[38],
+                                        y[39]))
     {
         return false;
     }
@@ -293,7 +698,7 @@ if (sphere_environment_in_collision(environment,
 
 
         // attaching at camera
-        set_attachment_pose(environment, to_isometry(&y[8]));
+        set_attachment_pose(environment, to_isometry(&y[44]));
 
         //
         // attachment vs. environment collisions
