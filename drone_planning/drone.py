@@ -8,8 +8,10 @@ planning subgroups, the kinodynamic limits and the top-level
 The model is the drone of the PHANTOM planner (H-tr/PHANTOM-Planner,
 ``phantom/robot/drone.urdf``): a stabilized multirotor.  Its flight
 controller holds roll and pitch, so the body is position and yaw.  The
-collision model is ONE sphere of radius 0.30 m at the body centre.  A
-camera hangs 6 cm below the body centre on a pan-tilt gimbal.  The full
+body is a box of 0.46 x 0.46 x 0.12 m, and a camera hangs 6 cm below the
+body centre on a pan-tilt gimbal.  The collision model is 10 spheres on
+the body (``drone_spherized.urdf``): foam's 9 spheres of the box and one
+sphere at the gimbal pivot that holds the camera at every pan and tilt.  The full
 configuration vector is 6-DOF, in PHANTOM's order:
 
 * ``[0:4]`` — body ``(x, y, z, yaw)``: virtual joints in the world frame
@@ -17,8 +19,8 @@ configuration vector is 6-DOF, in PHANTOM's order:
 * ``[4:6]`` — gimbal: pan (``camera_pan``) and tilt (``camera_tilt``)
 
 Positive pan turns the camera left (counter-clockwise seen from above),
-positive tilt raises it, and zero looks straight ahead.  The gimbal links
-have no collision geometry, so the gimbal angles never change whether a
+positive tilt raises it, and zero looks straight ahead.  Every sphere is
+on the body link, so the gimbal angles never change whether a
 configuration collides.
 """
 
@@ -78,9 +80,9 @@ JOINT_ACCELERATION_LIMITS: dict[str, tuple[float, float]] = {
 HORIZONTAL_MAX_SPEED: float = BASE_MAX_VELOCITY  # |(x_dot, y_dot)|, m/s
 HORIZONTAL_MAX_ACCELERATION: float = BASE_MAX_ACCELERATION  # m/s^2
 
-# The URDF with the collision sphere only, the source of the VAMP model
-# (cricket).  Written by hand: the collision model already is one sphere,
-# so there is no foam step.
+# The URDF with the collision spheres only, the source of the VAMP model
+# (cricket): foam's fit of the body box and the camera's sphere
+# (scripts/spherize_robot.sh drone).
 SPHERIZED_URDF_PATH = os.path.join(_RESOURCES_DIR, "drone_spherized.urdf")
 
 # PHANTOM's drone.urdf with the virtual base joints (and its visual boxes).
